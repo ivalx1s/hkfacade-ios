@@ -6,6 +6,7 @@ public enum HKQuantityType {
     case distance
     case basalEnergy
     case activeEnergy
+    case mindfulMinutes
 
     public var units: HKUnit {
         switch self {
@@ -14,14 +15,32 @@ public enum HKQuantityType {
         case .distance: return .meter()
         case .basalEnergy: return .smallCalorie()
         case .activeEnergy: return .smallCalorie()
+        case .mindfulMinutes: return .minute()
         }
     }
 
-    var asSample: HKSampleType? { asHKObject as? HKSampleType }
+    var asSampleType: HKSampleType? { asHKQuantityType as? HKSampleType }
 
-    var asQuantity: HealthKit.HKQuantityType? { asHKObject as? HealthKit.HKQuantityType }
+    var asQuantityType: HealthKit.HKQuantityType? { asHKQuantityType as? HealthKit.HKQuantityType }
 
-    var asHKObject: HealthKit.HKObjectType? {
+    var asHKCategoryType: HealthKit.HKCategoryType? {
+        switch self {
+        case .heartRate:
+            return nil
+        case .steps:
+            return nil
+        case .distance:
+            return nil
+        case .basalEnergy:
+            return nil
+        case .activeEnergy:
+            return nil
+        case .mindfulMinutes:
+            return HKObjectType.categoryType(forIdentifier: .mindfulSession)
+        }
+    }
+
+    var asHKQuantityType: HealthKit.HKObjectType? {
         switch self {
         case .heartRate:
             return HealthKit.HKQuantityType.quantityType(forIdentifier: .heartRate)
@@ -33,6 +52,8 @@ public enum HKQuantityType {
             return HealthKit.HKQuantityType.quantityType(forIdentifier: .basalEnergyBurned)
         case .activeEnergy:
             return HealthKit.HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)
+        case .mindfulMinutes:
+            return HealthKit.HKQuantityType.categoryType(forIdentifier: .mindfulSession)
         }
     }
 }

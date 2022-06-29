@@ -4,14 +4,14 @@ public struct HKReadStatsRequest {
     let associatedType: HKQuantityType
     let anchor: Date
     let predicate: HKPredicate?
-    let cadence: DateComponents
+    let cadence: HKCadence
     let options: HKStatisticsOptions
 
     public init(
             type: HKQuantityType,
             anchor: Date,
             predicate: HKPredicate? = nil,
-            cadence: DateComponents,
+            cadence: HKCadence,
             options: HKStatisticsOptions
     ) {
         self.associatedType = type

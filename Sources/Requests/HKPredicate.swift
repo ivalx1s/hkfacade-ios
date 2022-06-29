@@ -11,4 +11,5 @@ public indirect enum HKPredicate {
     case composite(HKLogicalOperation, [HKPredicate])
     case date(HKOpenDateRange)
     case quantity(operator: NSComparisonPredicate.Operator, value: Double)
+    case source(name: String)
 }

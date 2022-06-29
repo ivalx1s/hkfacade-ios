@@ -3,6 +3,15 @@ import HealthKit
 
 public struct HKModelBuilder {
 
+    public static func buildCategoryValue(request: HKWriteSampleRequest) -> Int {
+        switch request.type {
+        case .mindfulMinutes:
+            return 0
+        default:
+            return Int(lround(request.value))
+        }
+    }
+
     public static func build(_ predicate: HKPredicate?, units: HKUnit) -> NSPredicate? {
         guard let predicate = predicate else { return nil }
         return build(predicate: predicate, units: units)
@@ -31,24 +40,61 @@ public struct HKModelBuilder {
                     withStart: period.start,
                     end: period.end
             )
+        case let .source(name):
+            return HKQuery.predicateForObjects(
+                    withDeviceProperty: HKDevicePropertyKeyName,
+                    allowedValues: [name]
+            )
         }
     }
 
-    public static func build(_ model: HKQuantitySample, units: HKUnit) -> HKStatsSample {
+    public static func build(_ model: HKSample, type: HKQuantityType) -> HKStatsSample {
         HKStatsSample(
-                val: model.quantity.doubleValue(for: units),
+                val: buildValue(model, type: type),
                 period: .init(start: model.startDate, end: model.endDate),
                 source: build(model.device)
         )
+    }
+
+    public static func buildValue(_ model: HKSample, type: HKQuantityType) -> Double? {
+        if let model = model as? HKQuantitySample {
+            return model.quantity.doubleValue(for: type.units)
+        }
+        if let model = model as? HKCategorySample {
+            switch type {
+            case .mindfulMinutes:
+                return (model.endDate.timeIntervalSince(model.startDate) / 60)
+            default:
+                print("default HKCategorySample value")
+                return Double(model.value)
+            }
+        }
+
+        print("unsupported HKSample type")
+        return nil
     }
 
     public static func build(_ model: HealthKit.HKDevice?) -> HKDevice? {
         guard let device = model else { return nil }
         return .init(
                 name: device.name ?? "",
+                model: device.model ?? "",
                 hardwareVersion: device.hardwareVersion ?? "",
                 softwareVersion: device.softwareVersion ?? "",
                 manufacturer: device.manufacturer ?? ""
+        )
+    }
+
+    static func buildDevice(_ device: HKFacade.HKDevice) -> HealthKit.HKDevice {
+        .init(
+                name: device.name,
+                manufacturer: device.manufacturer,
+                model: device.model,
+                hardwareVersion: device.hardwareVersion,
+                firmwareVersion: nil,
+                softwareVersion: device.softwareVersion,
+                localIdentifier: nil,
+                udiDeviceIdentifier: nil
         )
     }
 }

@@ -9,4 +9,6 @@ public enum HKError: Error {
     case failedToSave(Error)
     case failedToSaveSafe
     case failedToRead
+    case failedToRead_unsupportedType
+    case failedToSave_unsupportedType
 }
