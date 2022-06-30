@@ -6,7 +6,7 @@ public extension HKStatisticsCollection {
                 .statistics()
                 .map {
                     HKStatsAggregation(
-                            val: $0.averageQuantity()?.doubleValue(for: .beatsPerMinuteUnit),
+                            val: $0.averageQuantity()?.doubleValue(for: .timesPerMinuteUnit),
                             period: .init(start: $0.startDate, end: $0.endDate)
                     )
                 }

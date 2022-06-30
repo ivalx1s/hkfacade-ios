@@ -7,9 +7,25 @@ public enum HKDomain {
 
     var associatedTypes: [HKQuantityType] {
         switch self {
-        case .fitness: return [.steps, .distance, .basalEnergy, .activeEnergy]
-        case .cardio: return [.heartRate]
-        case .meditation: return [.mindfulMinutes]
+        case .fitness: return [
+            .steps,
+            .distance,
+            .basalEnergy,
+            .activeEnergy
+        ]
+
+        case .cardio: return [
+            .heartRate,
+            .breathRate,
+            .oxygenSaturation,
+            .bloodPressureSystolic,
+            .bloodPressureDiastolic,
+            .sdnn
+        ]
+
+        case .meditation: return [
+            .mindfulMinutes
+        ]
         }
     }
 
