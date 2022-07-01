@@ -3,12 +3,12 @@ import HealthKit
 
 public struct HKModelBuilder {
 
-    public static func buildCategoryValue(request: HKWriteSampleRequest) -> Int {
-        switch request.type {
+    public static func buildCategoryValue(type: HKSampleType, value: Double) -> Int {
+        switch type {
         case .mindfulMinutes:
             return 0
         default:
-            return Int(lround(request.value))
+            return Int(lround(value))
         }
     }
 
@@ -48,7 +48,7 @@ public struct HKModelBuilder {
         }
     }
 
-    public static func build(_ model: HKSample, type: HKQuantityType) -> HKStatsSample {
+    public static func build(_ model: HKSample, type: HKSampleType) -> HKStatsSample {
         HKStatsSample(
                 val: buildValue(model, type: type),
                 type: type,
@@ -57,7 +57,7 @@ public struct HKModelBuilder {
         )
     }
 
-    public static func buildValue(_ model: HKSample, type: HKQuantityType) -> Double? {
+    public static func buildValue(_ model: HKSample, type: HKSampleType) -> Double? {
         if let model = model as? HKQuantitySample {
             return model.quantity.doubleValue(for: type.units)
         }
@@ -86,7 +86,7 @@ public struct HKModelBuilder {
         )
     }
 
-    static func buildDevice(_ device: HKFacade.HKDevice) -> HealthKit.HKDevice {
+    static func buildDevice(_ device: HKDevice) -> HealthKit.HKDevice {
         .init(
                 name: device.name,
                 manufacturer: device.manufacturer,

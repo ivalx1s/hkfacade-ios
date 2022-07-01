@@ -7,7 +7,7 @@ public struct HKStatsAggregation: Hashable, Equatable {
 
 public struct HKStatsSample: Hashable, Equatable {
     public let val: Double?
-    public let type: HKQuantityType
+    public let type: HKSampleType
     public let period: HKClosedDateRange
     public let source: HKDevice?
 }

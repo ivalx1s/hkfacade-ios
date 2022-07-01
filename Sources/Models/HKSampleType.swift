@@ -1,12 +1,13 @@
 import HealthKit
 
-public enum HKQuantityType {
+public enum HKSampleType {
     case heartRate
     case breathRate
     case oxygenSaturation
     case bloodPressureSystolic
     case bloodPressureDiastolic
     case sdnn
+    case rri
 
     case steps
     case distance
@@ -23,6 +24,7 @@ public enum HKQuantityType {
         case .bloodPressureSystolic: return .millimeterOfMercury()
         case .bloodPressureDiastolic: return .millimeterOfMercury()
         case .sdnn: return .second()
+        case .rri: return .second()
 
         case .steps: return .count()
         case .distance: return .meter()
@@ -33,9 +35,11 @@ public enum HKQuantityType {
         }
     }
 
-    var asSampleType: HKSampleType? { asHKQuantityType as? HKSampleType }
+    var asSampleType: HealthKit.HKSampleType? { asHKQuantityType as? HealthKit.HKSampleType }
 
     var asQuantityType: HealthKit.HKQuantityType? { asHKQuantityType as? HealthKit.HKQuantityType }
+
+    var asHKSeriesType: HealthKit.HKSeriesType? { asHKQuantityType as? HKSeriesType }
 
     var asHKCategoryType: HealthKit.HKCategoryType? {
         switch self {
@@ -50,6 +54,8 @@ public enum HKQuantityType {
         case .bloodPressureDiastolic:
             return nil
         case .sdnn:
+            return nil
+        case .rri:
             return nil
 
         case .steps:
@@ -79,7 +85,8 @@ public enum HKQuantityType {
             return HealthKit.HKQuantityType.quantityType(forIdentifier: .bloodPressureDiastolic)
         case .sdnn:
             return HealthKit.HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN)
-
+        case .rri:
+            return HealthKit.HKSeriesType.heartbeat()
         case .steps:
             return HealthKit.HKQuantityType.quantityType(forIdentifier: .stepCount)
         case .distance:

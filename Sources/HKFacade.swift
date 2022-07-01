@@ -2,16 +2,18 @@ import Foundation
 import HealthKit
 import Combine
 
-
-public protocol IHealthService {
+public protocol AnyHKFacade {
     var isAvailable: Bool { get }
     func checkAccess(_ domains: HKDomain...) async -> Result<Void, HKError>
+
     func read(request: HKReadSamplesRequest) async -> Result<[HKStatsSample], HKError>
     func read(request: HKReadStatsRequest) -> AnyPublisher<HKStatisticsCollection, HKError>
-    func write(request: HKWriteSampleRequest) async -> Result<Void, HKError>
+    func read(request: HKReadRriSeriesRequest) async -> Result<[HKRriSession], HKError>
+
+    func write(request: HKWriteRequest) async -> Result<Void, HKError>
 }
 
-public class HealthService: IHealthService {
+public class HKFacade: AnyHKFacade {
     private let hkStore: HKHealthStore?
     
     public init() {
@@ -21,8 +23,22 @@ public class HealthService: IHealthService {
     }
 }
 
+// write
+extension HKFacade {
+    public func write(request: HKWriteRequest) async -> Result<Void, HKError> {
+        switch request.type {
+        case let .quantitySample(qt, val, period):
+            return await writeQuantitySample(type: qt, value: val, period: period, device: request.device)
+        case let .categorySample(ct, val, period):
+            return await writeCategorySample(type: ct, value: val, period: period, device: request.device)
+        case let .heartbeat(session):
+            return await writeRri(session: session, device: request.device)
+        }
+    }
+}
+
 // access
-extension HealthService {
+extension HKFacade {
     public var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
 
     public func checkAccess(_ domains: HKDomain...) async -> Result<Void, HKError> {
@@ -39,7 +55,7 @@ extension HealthService {
         }
     }
 
-    private func requestAccess(toShare: [HKQuantityType], toRead: [HKQuantityType]) async -> Result<Bool, HKError> {
+    private func requestAccess(toShare: [HKSampleType], toRead: [HKSampleType]) async -> Result<Bool, HKError> {
         await withCheckedContinuation { continuation in
             guard let hkStore = hkStore else {
                 return continuation.resume(returning:  .failure(.hkNotAvailable))
@@ -57,7 +73,7 @@ extension HealthService {
         }
     }
 
-    private func requestAccess(toShare: [HKQuantityType], toRead: [HKQuantityType]) -> AnyPublisher<Bool, HKError> {
+    private func requestAccess(toShare: [HKSampleType], toRead: [HKSampleType]) -> AnyPublisher<Bool, HKError> {
         Deferred {
             Future<Bool, HKError> { promise in
                 guard let hkStore = self.hkStore else {
@@ -80,8 +96,104 @@ extension HealthService {
     }
 }
 
+// rri
+extension HKFacade {
+    private func writeRri(session: HKRriSession, device: HKDevice) async -> Result<Void, HKError> {
+        guard let hkStore = hkStore else { return .failure(.hkNotAvailable) }
+
+        let rriBuilder = HKHeartbeatSeriesBuilder(
+                healthStore: hkStore,
+                device: HKModelBuilder.buildDevice(device),
+                start: session.period.start
+        )
+
+        await session
+                .timestamps
+                .concurrentForEach { timestamp in
+                    try? await rriBuilder.addHeartbeat(at: timestamp, precededByGap: true)
+                }
+        do {
+            try await rriBuilder.finishSeries()
+            return .success(())
+        } catch {
+            return .failure(.failedToSave(error))
+        }
+    }
+
+    public func read(request: HKReadRriSeriesRequest) async -> Result<[HKRriSession], HKError> {
+        let sessionsRes = await readHeartbeatSessions(request: request)
+
+        switch sessionsRes {
+        case let .success(sessions):
+            let sessionsWithSeries: [HKRriSession] =
+                    await sessions.concurrentMap {[weak self] session in
+                        let period = HKClosedDateRange(start: session.startDate, end: session.endDate)
+                        let seriesRes = await self?.readHeartbeatSeries(for: session)
+                        switch seriesRes {
+                        case let .success(series):
+                            return HKRriSession(period: period, timestamps: series)
+                        case let .failure(err):
+                            print("failed to read rri session: \(err)")
+                            return HKRriSession(period: period, timestamps: [])
+                        case .none:
+                            return HKRriSession(period: period, timestamps: [])
+                        }
+                    }
+
+            return .success(sessionsWithSeries)
+
+        case let .failure(err):
+            return .failure(.failedToRead(err))
+        }
+    }
+
+    private func readHeartbeatSessions(request: HKReadRriSeriesRequest) async -> Result<[HKHeartbeatSeriesSample], HKError> {
+        await withCheckedContinuation { continuation in
+            guard let hkStore = hkStore else {
+                return continuation.resume(returning: .failure(.hkNotAvailable))
+            }
+
+            let hbSeriesSampleType = HKSeriesType.heartbeat()
+
+            let heartbeatSeriesSampleQuery = HKSampleQuery(
+                    sampleType: hbSeriesSampleType,
+                    predicate: HKModelBuilder.build(
+                            request.predicate,
+                            units: request.associatedType.units
+                    ),
+                    limit: request.limit ?? HKObjectQueryNoLimit,
+                    sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)])
+            { (sampleQuery, samples, error) in
+                let sessions = samples?
+                        .compactMap { $0 as? HKHeartbeatSeriesSample }
+                        ?? []
+
+                return continuation.resume(returning: .success(sessions))
+            }
+
+            hkStore.execute(heartbeatSeriesSampleQuery)
+        }
+    }
+
+    private func readHeartbeatSeries(for session: HKHeartbeatSeriesSample) async -> Result<[TimeInterval], HKError> {
+        await withCheckedContinuation { continuation in
+            guard let hkStore = hkStore else {
+                return continuation.resume(returning: .failure(.hkNotAvailable))
+            }
+            var data: [TimeInterval] = []
+            let query = HKHeartbeatSeriesQuery(heartbeatSeries: session) { (query, timeSinceSeriesStart, precededByGap, done, error) in
+                data.append(timeSinceSeriesStart)
+                if done {
+                    return continuation.resume(returning: .success(data))
+                }
+            }
+            hkStore.execute(query)
+        }
+    }
+}
+
 // stats aggregations
-extension HealthService {
+extension HKFacade {
     public func read(request: HKReadStatsRequest) -> AnyPublisher<HKStatisticsCollection, HKError> {
         perform(request)
     }
@@ -106,7 +218,7 @@ extension HealthService {
 
         let notify: (HKStatisticsCollection?)->() = { collection in
             guard let collection = collection else {
-                subject.send(completion: .failure(HKError.failedToRead))
+                subject.send(completion: .failure(HKError.failedToRead_noStats))
                 return
             }
             print("read \(request.associatedType): found: \(collection.statistics().count)")
@@ -131,7 +243,7 @@ extension HealthService {
 }
 
 // correlations
-extension HealthService {
+extension HKFacade {
     public func readCorrelation() async {
         var highCalorieFoods: [HKCorrelationQuery] = []
 
@@ -173,7 +285,7 @@ extension HealthService {
 }
 
 // stats samples
-extension HealthService {
+extension HKFacade {
     public func read(request: HKReadSamplesRequest) async -> Result<[HKStatsSample], HKError> {
         await perform(request)
     }
@@ -215,48 +327,35 @@ extension HealthService {
         }
     }
 
-
-    public func write(request: HKWriteSampleRequest) async -> Result<Void, HKError> {
-        await perform(request)
-    }
-
-    private func perform(_ request: HKWriteSampleRequest) async -> Result<Void, HKError> {
-        if let qt = request.type.asQuantityType {
-            return await performQuantityRequest(request, qt: qt)
+    private func writeQuantitySample(type: HKSampleType, value: Double, period: HKClosedDateRange, device: HKDevice) async -> Result<Void, HKError> {
+        guard let qt = type.asQuantityType else {
+            return .failure(.failedToSaveCategorySample)
         }
 
-        if let ct = request.type.asHKCategoryType {
-            return await performCategoryRequest(request, ct: ct)
-        }
-
-        return .failure(.failedToSave_unsupportedType)
-    }
-
-    private func performQuantityRequest(_ request: HKWriteSampleRequest, qt: HealthKit.HKQuantityType) async -> Result<Void, HKError> {
-        let quantity = HKQuantity(unit: request.type.units, doubleValue: request.value)
-        return await saveQuantitySample(
+        let sample = HKQuantitySample(
                 type: qt,
-                quantity: quantity,
-                period: request.period,
-                device: HKModelBuilder.buildDevice(request.device)
-        )
-    }
-
-    private func performCategoryRequest(_ request: HKWriteSampleRequest, ct: HealthKit.HKCategoryType, device: HealthKit.HKDevice? = nil) async -> Result<Void, HKError> {
-        let sample = HKCategorySample(
-                type: ct,
-                value: HKModelBuilder.buildCategoryValue(request: request),
-                start: request.period.start,
-                end: request.period.end,
-                device: HKModelBuilder.buildDevice(request.device),
+                quantity: HKQuantity(unit: type.units, doubleValue: value),
+                start: period.start, end: period.end,
+                device: HKModelBuilder.buildDevice(device),
                 metadata: nil
         )
         return await saveSample(sample)
     }
 
+    private func writeCategorySample(type: HKSampleType, value: Double, period: HKClosedDateRange, device: HKDevice) async -> Result<Void, HKError> {
+        guard let ct = type.asHKCategoryType else {
+            return .failure(.failedToSaveCategorySample)
+        }
 
-    private func saveQuantitySample(type: HealthKit.HKQuantityType, quantity: HKQuantity, period: HKClosedDateRange, device: HealthKit.HKDevice? = nil) async -> Result<Void, HKError> {
-        let sample = HKQuantitySample(type: type, quantity: quantity, start: period.start, end: period.end, device: device, metadata: nil)
+        let sample = HKCategorySample(
+                type: ct,
+                value: HKModelBuilder.buildCategoryValue(type: type, value: value),
+                start: period.start,
+                end: period.end,
+                device: HKModelBuilder.buildDevice(device),
+                metadata: nil
+        )
+
         return await saveSample(sample)
     }
 

@@ -5,7 +5,7 @@ public enum HKDomain {
     case cardio
     case meditation
 
-    var associatedTypes: [HKQuantityType] {
+    var associatedTypes: [HKSampleType] {
         switch self {
         case .fitness: return [
             .steps,
@@ -20,7 +20,8 @@ public enum HKDomain {
             .oxygenSaturation,
             .bloodPressureSystolic,
             .bloodPressureDiastolic,
-            .sdnn
+            .sdnn,
+            .rri
         ]
 
         case .meditation: return [
@@ -29,7 +30,7 @@ public enum HKDomain {
         }
     }
 
-    func contains(_ type: HKQuantityType) -> Bool {
+    func contains(_ type: HKSampleType) -> Bool {
         self.associatedTypes.contains(type)
     }
 }
