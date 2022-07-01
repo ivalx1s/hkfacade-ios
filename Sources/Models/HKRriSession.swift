@@ -1,11 +1,11 @@
 import Foundation
 
 public struct HKRriSession: Equatable, Hashable {
-    public let period: HKClosedDateRange
+    public let period: HKPeriod
     public let timestamps: [TimeInterval]
 
     public init(
-            period: HKClosedDateRange,
+            period: HKPeriod,
             timestamps: [TimeInterval]
     ) {
         self.period = period

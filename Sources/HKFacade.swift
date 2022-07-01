@@ -110,6 +110,8 @@ extension HKFacade {
         switch request.type {
         case let .quantitySample(qt, val, period):
             return await writeQuantitySample(type: qt, value: val, period: period, device: request.device)
+        case let .bloodPressureSample(value, period):
+            return await writeBloodPressureSample(value: value, period: period, device: request.device)
         case let .categorySample(ct, val, period):
             return await writeCategorySample(type: ct, value: val, period: period, device: request.device)
         case let .heartbeat(session):
@@ -156,6 +158,21 @@ extension HKFacade {
                         }
         )
     }
+
+    public func writeBloodPressureSample(value: HKBloodPressure, period: HKPeriod, device: HKDevice) async -> Result<Void, HKError> {
+        let bpSystolicType = HKSampleType.bloodPressureSystolic
+        let bpDiastolicType = HKSampleType.bloodPressureDiastolic
+
+        async let systolicRes = writeQuantitySample(type: bpSystolicType, value: value.systolic, period: period, device: device)
+        async let diastolicRes = writeQuantitySample(type: bpDiastolicType, value: value.diastolic, period: period, device: device)
+        guard
+                case .success = await systolicRes,
+                case .success = await diastolicRes
+        else {
+            return .failure(.failedToRead_noStats )
+        }
+        return .success(())
+    }
 }
 
 // rri
@@ -189,7 +206,7 @@ extension HKFacade {
         case let .success(sessions):
             let sessionsWithSeries: [HKRriSession] =
                     await sessions.concurrentMap {[weak self] session in
-                        let period = HKClosedDateRange(start: session.startDate, end: session.endDate)
+                        let period = HKPeriod(start: session.startDate, end: session.endDate)
                         let seriesRes = await self?.readHeartbeatSeries(for: session)
                         switch seriesRes {
                         case let .success(series):
@@ -387,7 +404,7 @@ extension HKFacade {
         }
     }
 
-    private func writeQuantitySample(type: HKSampleType, value: Double, period: HKClosedDateRange, device: HKDevice) async -> Result<Void, HKError> {
+    private func writeQuantitySample(type: HKSampleType, value: Double, period: HKPeriod, device: HKDevice) async -> Result<Void, HKError> {
         guard let qt = type.asQuantityType else {
             return .failure(.failedToSaveCategorySample)
         }
@@ -402,7 +419,7 @@ extension HKFacade {
         return await saveSample(sample)
     }
 
-    private func writeCategorySample(type: HKSampleType, value: Double, period: HKClosedDateRange, device: HKDevice) async -> Result<Void, HKError> {
+    private func writeCategorySample(type: HKSampleType, value: Double, period: HKPeriod, device: HKDevice) async -> Result<Void, HKError> {
         guard let ct = type.asHKCategoryType else {
             return .failure(.failedToSaveCategorySample)
         }

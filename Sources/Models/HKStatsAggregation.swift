@@ -2,13 +2,13 @@ import Foundation
 
 public struct HKStatsAggregation: Hashable, Equatable {
     public let val: Double?
-    public let period: HKClosedDateRange
+    public let period: HKPeriod
 }
 
 public struct HKStatsSample: Hashable, Equatable {
     public let value: Value
     public let type: HKSampleType
-    public let period: HKClosedDateRange
+    public let period: HKPeriod
     public let source: HKDevice?
 }
 

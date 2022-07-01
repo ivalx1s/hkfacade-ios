@@ -12,7 +12,7 @@ public struct HKOpenDateRange {
     }
 }
 
-public struct HKClosedDateRange: Hashable, Equatable {
+public struct HKPeriod: Hashable, Equatable {
     public let start: Date
     public let end: Date
     public init(
