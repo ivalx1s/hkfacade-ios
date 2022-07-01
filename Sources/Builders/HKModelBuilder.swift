@@ -50,7 +50,7 @@ public struct HKModelBuilder {
 
     public static func build(_ model: HKSample, type: HKSampleType) -> HKStatsSample {
         HKStatsSample(
-                val: buildValue(model, type: type),
+                value: .nullableDouble(buildValue(model, type: type)),
                 type: type,
                 period: .init(start: model.startDate, end: model.endDate),
                 source: build(model.device)

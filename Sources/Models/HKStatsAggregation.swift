@@ -6,9 +6,38 @@ public struct HKStatsAggregation: Hashable, Equatable {
 }
 
 public struct HKStatsSample: Hashable, Equatable {
-    public let val: Double?
+    public let value: Value
     public let type: HKSampleType
     public let period: HKClosedDateRange
     public let source: HKDevice?
 }
 
+public extension HKStatsSample {
+    enum Value: Equatable, Hashable {
+        case nullableDouble(Double?)
+        case rriSession(HKRriSession)
+        case bloodPressure(HKBloodPressure)
+    }
+}
+
+public extension HKStatsSample.Value {
+    var asDouble: Double? {
+        switch self {
+        case let .nullableDouble(val): return val
+        default: return nil
+        }
+    }
+    var asBloodPressure: HKBloodPressure? {
+        switch self {
+        case let .bloodPressure(val): return val
+        default: return nil
+        }
+    }
+
+    var asRriSession: HKRriSession? {
+        switch self {
+        case let .rriSession(val): return val
+        default: return nil
+        }
+    }
+}

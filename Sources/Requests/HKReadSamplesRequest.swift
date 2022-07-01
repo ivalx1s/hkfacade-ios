@@ -1,17 +1,11 @@
-import Foundation
+import HealthKit
 
 public struct HKReadSamplesRequest {
-    let associatedType: HKSampleType
-    let predicate: HKPredicate?
-    let limit: Int?
+    let type: RType
 
     public init(
-            type: HKSampleType,
-            predicate: HKPredicate?,
-            limit: Int? = nil
+            type: RType
     ) {
-        self.associatedType = type
-        self.predicate = predicate
-        self.limit = limit
+        self.type = type
     }
 }

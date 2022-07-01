@@ -1,6 +1,6 @@
 import Foundation
 
-public struct HKRriSession {
+public struct HKRriSession: Equatable, Hashable {
     public let period: HKClosedDateRange
     public let timestamps: [TimeInterval]
 

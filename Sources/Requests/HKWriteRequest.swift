@@ -13,22 +13,3 @@ public struct HKWriteRequest {
     }
 }
 
-public extension HKWriteRequest {
-    enum RType {
-        case quantitySample(
-            st: HKSampleType,
-            value: Double,
-            period: HKClosedDateRange
-        )
-        case categorySample(
-            st: HKSampleType,
-            value: Double,
-            period: HKClosedDateRange
-        )
-        case heartbeat(
-            session: HKRriSession
-        )
-    }
-}
-
-

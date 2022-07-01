@@ -6,6 +6,7 @@ public enum HKSampleType {
     case oxygenSaturation
     case bloodPressureSystolic
     case bloodPressureDiastolic
+    case bloodPressure
     case sdnn
     case rri
 
@@ -23,6 +24,7 @@ public enum HKSampleType {
         case .oxygenSaturation: return .percent()
         case .bloodPressureSystolic: return .millimeterOfMercury()
         case .bloodPressureDiastolic: return .millimeterOfMercury()
+        case .bloodPressure: return .millimeterOfMercury()
         case .sdnn: return .second()
         case .rri: return .second()
 
@@ -49,9 +51,9 @@ public enum HKSampleType {
             return nil
         case .oxygenSaturation:
             return nil
-        case .bloodPressureSystolic:
-            return nil
-        case .bloodPressureDiastolic:
+        case .bloodPressureSystolic,
+             .bloodPressureDiastolic,
+             .bloodPressure:
             return nil
         case .sdnn:
             return nil
@@ -83,6 +85,9 @@ public enum HKSampleType {
             return HealthKit.HKQuantityType.quantityType(forIdentifier: .bloodPressureSystolic)
         case .bloodPressureDiastolic:
             return HealthKit.HKQuantityType.quantityType(forIdentifier: .bloodPressureDiastolic)
+        case .bloodPressure:
+            return nil
+
         case .sdnn:
             return HealthKit.HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN)
         case .rri:

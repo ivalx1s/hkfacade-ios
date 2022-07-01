@@ -8,7 +8,6 @@ public protocol AnyHKFacade {
 
     func read(request: HKReadSamplesRequest) async -> Result<[HKStatsSample], HKError>
     func read(request: HKReadStatsRequest) -> AnyPublisher<HKStatisticsCollection, HKError>
-    func read(request: HKReadRriSeriesRequest) async -> Result<[HKRriSession], HKError>
 
     func write(request: HKWriteRequest) async -> Result<Void, HKError>
 }
@@ -23,19 +22,6 @@ public class HKFacade: AnyHKFacade {
     }
 }
 
-// write
-extension HKFacade {
-    public func write(request: HKWriteRequest) async -> Result<Void, HKError> {
-        switch request.type {
-        case let .quantitySample(qt, val, period):
-            return await writeQuantitySample(type: qt, value: val, period: period, device: request.device)
-        case let .categorySample(ct, val, period):
-            return await writeCategorySample(type: ct, value: val, period: period, device: request.device)
-        case let .heartbeat(session):
-            return await writeRri(session: session, device: request.device)
-        }
-    }
-}
 
 // access
 extension HKFacade {
@@ -96,6 +82,82 @@ extension HKFacade {
     }
 }
 
+// read samples
+extension HKFacade {
+    public func read(request: HKReadSamplesRequest) async -> Result<[HKStatsSample], HKError> {
+        switch request.type {
+        case let .discreteSample(type, predicate, limit):
+            return await readSamples(type: type, predicate: predicate, limit: limit)
+        case let .bloodPressureSample(predicate, limit):
+            return await readBloodPressure(predicate: predicate, limit: limit)
+        case let .heartbeatSeries(predicate, limit):
+            switch await readRri(predicate: predicate, limit: limit) {
+            case let .success(sessions):
+                return .success(
+                        sessions
+                                .map {HKStatsSample(value: .rriSession($0), type: .rri, period: $0.period, source: nil)}
+                )
+            case let .failure(err):
+                return .failure(err)
+            }
+        }
+    }
+}
+
+// write
+extension HKFacade {
+    public func write(request: HKWriteRequest) async -> Result<Void, HKError> {
+        switch request.type {
+        case let .quantitySample(qt, val, period):
+            return await writeQuantitySample(type: qt, value: val, period: period, device: request.device)
+        case let .categorySample(ct, val, period):
+            return await writeCategorySample(type: ct, value: val, period: period, device: request.device)
+        case let .heartbeat(session):
+            return await writeRri(session: session, device: request.device)
+        }
+    }
+}
+
+// bloodPressure
+extension HKFacade {
+    public func readBloodPressure(predicate: HKPredicate?, limit: Int?) async -> Result<[HKStatsSample], HKError> {
+        let bpSystolicType = HKSampleType.bloodPressureSystolic
+        let bpDiastolicType = HKSampleType.bloodPressureDiastolic
+
+        async let systolicRes = readSamples(type: bpSystolicType, predicate: predicate, limit: limit)
+        async let diastolicRes = readSamples(type: bpDiastolicType, predicate: predicate, limit: limit)
+        guard
+                case let .success(systolic) = await systolicRes,
+                case let .success(diastolic) = await diastolicRes
+        else {
+            return .failure(.failedToRead_noStats )
+        }
+
+        return .success(
+                zip(systolic, diastolic)
+                        .compactMap {s, d in
+                            guard
+                                    s.period == d.period,
+                                    let sVal = s.value.asDouble,
+                                    let dVal = d.value.asDouble
+                            else {
+                                return nil
+                            }
+
+                            return .init(
+                                    value: .bloodPressure(.init(
+                                            systolic: sVal,
+                                            diastolic: dVal
+                                    )),
+                                    type: .bloodPressure,
+                                    period: s.period,
+                                    source: s.source
+                            )
+                        }
+        )
+    }
+}
+
 // rri
 extension HKFacade {
     private func writeRri(session: HKRriSession, device: HKDevice) async -> Result<Void, HKError> {
@@ -120,8 +182,8 @@ extension HKFacade {
         }
     }
 
-    public func read(request: HKReadRriSeriesRequest) async -> Result<[HKRriSession], HKError> {
-        let sessionsRes = await readHeartbeatSessions(request: request)
+    public func readRri(predicate: HKPredicate?, limit: Int?) async -> Result<[HKRriSession], HKError> {
+        let sessionsRes = await readHeartbeatSessions(predicate: predicate, limit: limit)
 
         switch sessionsRes {
         case let .success(sessions):
@@ -147,8 +209,10 @@ extension HKFacade {
         }
     }
 
-    private func readHeartbeatSessions(request: HKReadRriSeriesRequest) async -> Result<[HKHeartbeatSeriesSample], HKError> {
+    private func readHeartbeatSessions(predicate: HKPredicate?, limit: Int?) async -> Result<[HKHeartbeatSeriesSample], HKError> {
         await withCheckedContinuation { continuation in
+            let type: HKSampleType = .rri
+
             guard let hkStore = hkStore else {
                 return continuation.resume(returning: .failure(.hkNotAvailable))
             }
@@ -158,10 +222,10 @@ extension HKFacade {
             let heartbeatSeriesSampleQuery = HKSampleQuery(
                     sampleType: hbSeriesSampleType,
                     predicate: HKModelBuilder.build(
-                            request.predicate,
-                            units: request.associatedType.units
+                            predicate,
+                            units: type.units
                     ),
-                    limit: request.limit ?? HKObjectQueryNoLimit,
+                    limit: limit ?? HKObjectQueryNoLimit,
                     sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)])
             { (sampleQuery, samples, error) in
                 let sessions = samples?
@@ -181,12 +245,15 @@ extension HKFacade {
                 return continuation.resume(returning: .failure(.hkNotAvailable))
             }
             var data: [TimeInterval] = []
-            let query = HKHeartbeatSeriesQuery(heartbeatSeries: session) { (query, timeSinceSeriesStart, precededByGap, done, error) in
+            let query = HKHeartbeatSeriesQuery(heartbeatSeries: session) {
+                (query, timeSinceSeriesStart, precededByGap, done, error) in
+
                 data.append(timeSinceSeriesStart)
                 if done {
                     return continuation.resume(returning: .success(data))
                 }
             }
+
             hkStore.execute(query)
         }
     }
@@ -195,10 +262,6 @@ extension HKFacade {
 // stats aggregations
 extension HKFacade {
     public func read(request: HKReadStatsRequest) -> AnyPublisher<HKStatisticsCollection, HKError> {
-        perform(request)
-    }
-
-    private func perform(_ request: HKReadStatsRequest) -> AnyPublisher<HKStatisticsCollection, HKError> {
         let subject = PassthroughSubject<HKStatisticsCollection, HKError>()
 
         guard let associatedType = request.associatedType.asQuantityType else {
@@ -286,27 +349,24 @@ extension HKFacade {
 
 // stats samples
 extension HKFacade {
-    public func read(request: HKReadSamplesRequest) async -> Result<[HKStatsSample], HKError> {
-        await perform(request)
-    }
 
-    private func perform(_ request: HKReadSamplesRequest) async -> Result<[HKStatsSample], HKError> {
+    private func readSamples(type: HKSampleType, predicate: HKPredicate?, limit: Int?) async -> Result<[HKStatsSample], HKError> {
         await withCheckedContinuation { continuation in
             guard let hkStore = hkStore else {
                 return continuation.resume(returning: .failure(.hkNotAvailable))
             }
 
-            guard let sampleType = request.associatedType.asSampleType else {
+            guard let sampleType = type.asSampleType else {
                 return continuation.resume(returning: .failure(.failedToRead_unsupportedType))
             }
 
             let query = HKSampleQuery(
                     sampleType: sampleType,
                     predicate: HKModelBuilder.build(
-                            request.predicate,
-                            units: request.associatedType.units
+                            predicate,
+                            units: type.units
                     ),
-                    limit: request.limit ?? HKObjectQueryNoLimit,
+                    limit: limit ?? HKObjectQueryNoLimit,
                     sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
             ) { (query, collection, error) in
                 if let error = error {
@@ -317,9 +377,9 @@ extension HKFacade {
                 }
 
                 let result = collection
-                        .map { HKModelBuilder.build($0, type: request.associatedType)}
+                        .map { HKModelBuilder.build($0, type: type)}
 
-                print("read \(request.associatedType): found: \(result.count)")
+                print("read \(type): found: \(result.count)")
                 return continuation.resume(returning: .success(result))
             }
 
