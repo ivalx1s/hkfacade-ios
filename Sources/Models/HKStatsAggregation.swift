@@ -17,6 +17,7 @@ public extension HKStatsSample {
         case nullableDouble(Double?)
         case rriSession(HKRriSession)
         case bloodPressure(HKBloodPressure)
+        case mindfulMinutes(HKMindfulMinutes)
     }
 }
 
@@ -37,6 +38,13 @@ public extension HKStatsSample.Value {
     var asRriSession: HKRriSession? {
         switch self {
         case let .rriSession(val): return val
+        default: return nil
+        }
+    }
+
+    var asMindfulMinutes: HKMindfulMinutes? {
+        switch self {
+        case let .mindfulMinutes(val): return val
         default: return nil
         }
     }

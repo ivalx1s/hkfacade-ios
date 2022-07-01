@@ -5,11 +5,8 @@ import Combine
 public protocol AnyHKFacade {
     var isAvailable: Bool { get }
     func checkAccess(_ domains: HKDomain...) async -> Result<Void, HKError>
-
     func read(request: HKReadSamplesRequest) async -> Result<[HKStatsSample], HKError>
-
     func read(request: HKReadStatsRequest) -> AnyPublisher<HKStatisticsCollection, HKError>
-
     func write(request: HKWriteRequest) async -> Result<Void, HKError>
 }
 
@@ -140,7 +137,7 @@ extension HKFacade {
                 samples
                     .map {
                         HKStatsSample(
-                                value: .nullableDouble($0.period.end.timeIntervalSince($0.period.start)),
+                                value: .mindfulMinutes(.init(start: $0.period.start, end: $0.period.end)),
                                 type: .mindfulMinutes,
                                 period: $0.period,
                                 source: $0.source
