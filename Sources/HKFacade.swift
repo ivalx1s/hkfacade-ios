@@ -173,26 +173,26 @@ extension HKFacade {
         }
 
         return .success(
-                zip(systolic, diastolic)
-                        .compactMap {s, d in
-                            guard
-                                    s.period == d.period,
-                                    let sVal = s.value.asDouble,
-                                    let dVal = d.value.asDouble
-                            else {
-                                return nil
-                            }
+            zip(systolic, diastolic)
+                .compactMap {s, d in
+                    guard
+                        s.period == d.period,
+                        let sVal = s.value.asDouble,
+                        let dVal = d.value.asDouble
+                    else {
+                        return nil
+                    }
 
-                            return .init(
-                                    value: .bloodPressure(.init(
-                                            systolic: sVal,
-                                            diastolic: dVal
-                                    )),
-                                    type: .bloodPressure,
-                                    period: s.period,
-                                    source: s.source
-                            )
-                        }
+                    return .init(
+                        value: .bloodPressure(.init(
+                            systolic: sVal,
+                            diastolic: dVal
+                        )),
+                        type: .bloodPressure,
+                        period: s.period,
+                        source: s.source
+                    )
+                }
         )
     }
 
