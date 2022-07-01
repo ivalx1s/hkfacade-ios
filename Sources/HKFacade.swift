@@ -7,6 +7,7 @@ public protocol AnyHKFacade {
     func checkAccess(_ domains: HKDomain...) async -> Result<Void, HKError>
 
     func read(request: HKReadSamplesRequest) async -> Result<[HKStatsSample], HKError>
+
     func read(request: HKReadStatsRequest) -> AnyPublisher<HKStatisticsCollection, HKError>
 
     func write(request: HKWriteRequest) async -> Result<Void, HKError>
@@ -88,10 +89,15 @@ extension HKFacade {
         switch request.type {
         case let .discreteSample(type, predicate, limit):
             return await readSamples(type: type, predicate: predicate, limit: limit)
+
         case let .bloodPressureSample(predicate, limit):
-            return await readBloodPressure(predicate: predicate, limit: limit)
+            return await readBloodPressureSamples(predicate: predicate, limit: limit)
+
+        case let .mindfulMinutesSample(predicate, limit):
+            return await readMindfulMinutesSamples(predicate: predicate, limit: limit)
+
         case let .heartbeatSeries(predicate, limit):
-            switch await readRri(predicate: predicate, limit: limit) {
+            switch await readRriSeries(predicate: predicate, limit: limit) {
             case let .success(sessions):
                 return .success(
                         sessions
@@ -114,15 +120,49 @@ extension HKFacade {
             return await writeBloodPressureSample(value: value, period: period, device: request.device)
         case let .categorySample(ct, val, period):
             return await writeCategorySample(type: ct, value: val, period: period, device: request.device)
+        case let .mindfulMinutesSample(value):
+            return await writeMindfulMinutesSample(value: value, device: request.device)
         case let .heartbeat(session):
             return await writeRri(session: session, device: request.device)
         }
     }
 }
 
+// mindful minutes
+extension HKFacade {
+    public func readMindfulMinutesSamples(predicate: HKPredicate?, limit: Int?) async -> Result<[HKStatsSample], HKError> {
+        let mindfulMinutesType = HKSampleType.mindfulMinutes
+
+        let mindfulMinutesRes = await readSamples(type: mindfulMinutesType, predicate: predicate, limit: nil)
+        switch mindfulMinutesRes {
+        case let .success(samples):
+            return .success(
+                samples
+                    .map {
+                        HKStatsSample(
+                                value: .nullableDouble($0.period.end.timeIntervalSince($0.period.start)),
+                                type: .mindfulMinutes,
+                                period: $0.period,
+                                source: $0.source
+                        )
+                    }
+            )
+        case let .failure(err):
+            return .failure(err)
+        }
+
+    }
+
+    public func writeMindfulMinutesSample(value: HKMindfulMinutes, device: HKDevice) async -> Result<Void, HKError> {
+        let mindfulMinutesType = HKSampleType.mindfulMinutes
+
+        return await writeCategorySample(type: mindfulMinutesType, value: 0, period: .init(start: value.start, end: value.end), device: device)
+    }
+}
+
 // bloodPressure
 extension HKFacade {
-    public func readBloodPressure(predicate: HKPredicate?, limit: Int?) async -> Result<[HKStatsSample], HKError> {
+    public func readBloodPressureSamples(predicate: HKPredicate?, limit: Int?) async -> Result<[HKStatsSample], HKError> {
         let bpSystolicType = HKSampleType.bloodPressureSystolic
         let bpDiastolicType = HKSampleType.bloodPressureDiastolic
 
@@ -199,7 +239,7 @@ extension HKFacade {
         }
     }
 
-    public func readRri(predicate: HKPredicate?, limit: Int?) async -> Result<[HKRriSession], HKError> {
+    public func readRriSeries(predicate: HKPredicate?, limit: Int?) async -> Result<[HKRriSession], HKError> {
         let sessionsRes = await readHeartbeatSessions(predicate: predicate, limit: limit)
 
         switch sessionsRes {
@@ -449,7 +489,7 @@ extension HKFacade {
                 guard flag else {
                     return continuation.resume(returning: .failure(.failedToSaveSafe))
                 }
-
+                print("metric stored: \(hkSample.sampleType)")
                 return continuation.resume(returning: .success(()))
             }
         }
