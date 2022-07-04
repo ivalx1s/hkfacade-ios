@@ -14,4 +14,5 @@ public enum HKError: Error {
     case failedToRead_noStats
     case failedToRead_unsupportedType
     case failedToSave_unsupportedType
+    case failedToSave_invalidPeriod
 }

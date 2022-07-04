@@ -151,8 +151,11 @@ extension HKFacade {
     }
 
     public func writeMindfulMinutesSample(value: HKMindfulMinutes, device: HKDevice) async -> Result<Void, HKError> {
-        let mindfulMinutesType = HKSampleType.mindfulMinutes
+        guard value.start < value.end else {
+            return .failure(.failedToSave_invalidPeriod)
+        }
 
+        let mindfulMinutesType = HKSampleType.mindfulMinutes
         return await writeCategorySample(type: mindfulMinutesType, value: 0, period: .init(start: value.start, end: value.end), device: device)
     }
 }
