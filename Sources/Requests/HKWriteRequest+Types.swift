@@ -3,28 +3,28 @@ import Foundation
 public extension HKWriteRequest {
     enum RType {
         case quantitySample(
-                st: HKSampleType,
+                st: HKFMetricType,
                 value: Double,
-                period: HKPeriod
+                period: HKFPeriod
         )
 
         case bloodPressureSample(
-                value: HKBloodPressure,
-                period: HKPeriod
+                value: HKFBloodPressure,
+                period: HKFPeriod
         )
 
         case mindfulMinutesSample(
-                value: HKMindfulMinutes
+                value: HKFMindfulMinutes
         )
 
         case categorySample(
-                st: HKSampleType,
+                st: HKFMetricType,
                 value: Double,
-                period: HKPeriod
+                period: HKFPeriod
         )
 
         case heartbeat(
-                session: HKRriSession
+                session: HKFRriSession
         )
     }
 }

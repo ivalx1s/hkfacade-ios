@@ -9,7 +9,7 @@ public enum HKLogicalOperation: String {
 public indirect enum HKPredicate {
     case not(HKPredicate)
     case composite(HKLogicalOperation, [HKPredicate])
-    case date(HKOpenDateRange)
+    case date(HKFOpenDateRange)
     case quantity(operator: NSComparisonPredicate.Operator, value: Double)
     case source(name: String)
 }

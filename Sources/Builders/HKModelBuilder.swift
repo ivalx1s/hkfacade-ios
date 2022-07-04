@@ -3,7 +3,7 @@ import HealthKit
 
 public struct HKModelBuilder {
 
-    public static func buildCategoryValue(type: HKSampleType, value: Double) -> Int {
+    public static func buildCategoryValue(type: HKFMetricType, value: Double) -> Int {
         switch type {
         case .mindfulMinutes:
             return 0
@@ -48,8 +48,8 @@ public struct HKModelBuilder {
         }
     }
 
-    public static func build(_ model: HKSample, type: HKSampleType) -> HKStatsSample {
-        HKStatsSample(
+    public static func build(_ model: HKSample, type: HKFMetricType) -> HKFStatsSample {
+        HKFStatsSample(
                 value: .nullableDouble(buildValue(model, type: type)),
                 type: type,
                 period: .init(start: model.startDate, end: model.endDate),
@@ -57,7 +57,7 @@ public struct HKModelBuilder {
         )
     }
 
-    public static func buildValue(_ model: HKSample, type: HKSampleType) -> Double? {
+    public static func buildValue(_ model: HKSample, type: HKFMetricType) -> Double? {
         if let model = model as? HKQuantitySample {
             return model.quantity.doubleValue(for: type.units)
         }
@@ -75,7 +75,7 @@ public struct HKModelBuilder {
         return nil
     }
 
-    public static func build(_ model: HealthKit.HKDevice?) -> HKDevice? {
+    public static func build(_ model: HealthKit.HKDevice?) -> HKFDevice? {
         guard let device = model else { return nil }
         return .init(
                 name: device.name ?? "",
@@ -86,7 +86,7 @@ public struct HKModelBuilder {
         )
     }
 
-    static func buildDevice(_ device: HKDevice) -> HealthKit.HKDevice {
+    static func buildDevice(_ device: HKFDevice) -> HealthKit.HKDevice {
         .init(
                 name: device.name,
                 manufacturer: device.manufacturer,

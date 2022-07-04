@@ -2,11 +2,11 @@ import Foundation
 
 public struct HKWriteRequest {
     public let type: RType
-    public let device: HKDevice
+    public let device: HKFDevice
 
     public init(
             type: RType,
-            device: HKDevice
+            device: HKFDevice
     ) {
         self.type = type
         self.device = device

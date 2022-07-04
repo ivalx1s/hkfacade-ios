@@ -3,7 +3,7 @@ import HealthKit
 public extension HKReadSamplesRequest {
     enum RType {
         case discreteSample(
-                associatedType: HKSampleType,
+                associatedType: HKFMetricType,
                 predicate: HKPredicate?,
                 limit: Int?
         )
