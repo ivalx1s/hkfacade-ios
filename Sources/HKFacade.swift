@@ -8,6 +8,8 @@ public protocol AnyHKFacade {
     func readSamples(request: HKReadSamplesRequest) async -> Result<[HKFStatsSample], HKFError>
     func readStats(request: HKReadStatsRequest) -> AnyPublisher<HKStatisticsCollection, HKFError>
     func write(request: HKWriteRequest) async -> Result<Void, HKFError>
+
+    func remoteDataStream(request: HKReadStatsRequest) -> AsyncStream<Result<HKStatisticsCollection, HKFError>>
 }
 
 public class HKFacade: AnyHKFacade {
@@ -318,6 +320,48 @@ extension HKFacade {
 
 // stats aggregations
 extension HKFacade {
+    public func remoteDataStream(
+            request: HKReadStatsRequest
+    ) -> AsyncStream<Result<HKStatisticsCollection, HKFError>> {
+        AsyncStream { continuation in
+            Task {
+                guard let associatedType = request.associatedType.asQuantityType else {
+                    continuation.yield(.failure(.failedToGetQuantityType))
+                    return
+                }
+
+                let query = HKStatisticsCollectionQuery(
+                        quantityType: associatedType,
+                        quantitySamplePredicate: HKModelBuilder.build(
+                                request.predicate,
+                                units: request.associatedType.units
+                        ),
+                        options: request.options,
+                        anchorDate: request.anchor,
+                        intervalComponents: request.cadence.dateComponent
+                )
+
+                let notify: (HKStatisticsCollection?)->() = { collection in
+                    guard let collection = collection else {
+                        continuation.yield(.failure(HKFError.failedToRead_noStats))
+                        continuation.finish()
+                        return
+                    }
+                    print("read \(request.associatedType): found: \(collection.statistics().count)")
+                    continuation.yield(.success(collection))
+                }
+
+                query.initialResultsHandler = { query, collection, err in
+                    notify(collection)
+                }
+                query.statisticsUpdateHandler = { query, stats, collection, err in
+                    notify(collection)
+                }
+                hkStore?.execute(query)
+            }
+        }
+    }
+
     public func readStats(request: HKReadStatsRequest) -> AnyPublisher<HKStatisticsCollection, HKFError> {
         let subject = PassthroughSubject<HKStatisticsCollection, HKFError>()
 
