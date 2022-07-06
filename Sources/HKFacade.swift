@@ -336,7 +336,7 @@ extension HKFacade {
                                 request.predicate,
                                 units: request.associatedType.units
                         ),
-                        options: request.options,
+                        options: request.aggregationType.asStatsOption,
                         anchorDate: request.anchor,
                         intervalComponents: request.cadence.dateComponent
                 )
@@ -375,7 +375,7 @@ extension HKFacade {
                         request.predicate,
                         units: request.associatedType.units
                 ),
-                options: request.options,
+                options: request.aggregationType.asStatsOption,
                 anchorDate: request.anchor,
                 intervalComponents: request.cadence.dateComponent
         )
@@ -385,6 +385,7 @@ extension HKFacade {
                 subject.send(completion: .failure(HKFError.failedToRead_noStats))
                 return
             }
+            collection.asUnitSamples
             print("read \(request.associatedType): found: \(collection.statistics().count)")
             subject.send(collection)
         }

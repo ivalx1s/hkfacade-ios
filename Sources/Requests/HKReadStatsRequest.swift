@@ -5,19 +5,19 @@ public struct HKReadStatsRequest {
        public let anchor: Date
        public let predicate: HKPredicate?
        public let cadence: HKFCadence
-       public let options: HKStatisticsOptions
+       public let aggregationType: HKFAggregationType
 
        public init(
                associatedType: HKFMetricType,
                anchor: Date,
                cadence: HKFCadence,
                predicate: HKPredicate?,
-               options: HKStatisticsOptions
+               aggregationType: HKFAggregationType
        ) {
               self.associatedType = associatedType
               self.anchor = anchor
               self.cadence = cadence
               self.predicate = predicate
-              self.options = options
+              self.aggregationType = aggregationType
        }
 }

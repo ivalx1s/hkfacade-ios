@@ -1,15 +1,13 @@
 import Foundation
 
-public extension HKFStatsSample {
-    enum Value: Equatable, Hashable {
-        case nullableDouble(Double?)
-        case rriSession(HKFRriSession)
-        case bloodPressure(HKFBloodPressure)
-        case mindfulMinutes(HKFMindfulMinutes)
-    }
+public enum HKFValue: Equatable, Hashable {
+    case nullableDouble(Double?)
+    case rriSession(HKFRriSession)
+    case bloodPressure(HKFBloodPressure)
+    case mindfulMinutes(HKFMindfulMinutes)
 }
 
-public extension HKFStatsSample.Value {
+public extension HKFValue {
     var asDouble: Double? {
         switch self {
         case let .nullableDouble(val): return val
