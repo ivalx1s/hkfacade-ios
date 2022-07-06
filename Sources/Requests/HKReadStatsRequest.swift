@@ -3,21 +3,21 @@ import HealthKit
 public struct HKReadStatsRequest {
        public let associatedType: HKFMetricType
        public let anchor: Date
-       public let predicate: HKPredicate?
+       public let predicate: HKFPredicate?
        public let cadence: HKFCadence
-       public let aggregationType: HKFAggregationType
+       public let aggregation: HKFAggregationType
 
        public init(
                associatedType: HKFMetricType,
                anchor: Date,
                cadence: HKFCadence,
-               predicate: HKPredicate?,
-               aggregationType: HKFAggregationType
+               predicate: HKFPredicate?,
+               aggregation: HKFAggregationType
        ) {
               self.associatedType = associatedType
               self.anchor = anchor
               self.cadence = cadence
               self.predicate = predicate
-              self.aggregationType = aggregationType
+              self.aggregation = aggregation
        }
 }

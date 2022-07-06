@@ -6,7 +6,7 @@ public protocol AnyHKFacade {
     var isAvailable: Bool { get }
     func checkAccess(_ domains: HKFDomain...) async -> Result<Void, HKFError>
     func readSamples(request: HKReadSamplesRequest) async -> Result<[HKFStatsSample], HKFError>
-    func readStats(request: HKReadStatsRequest) -> AnyPublisher<HKStatisticsCollection, HKFError>
+    func readStats(request: HKReadStatsRequest) -> AnyPublisher<HKFStatsCollection, HKFError>
     func write(request: HKWriteRequest) async -> Result<Void, HKFError>
 
     func remoteDataStream(request: HKReadStatsRequest) -> AsyncStream<Result<HKStatisticsCollection, HKFError>>
@@ -129,7 +129,7 @@ extension HKFacade {
 
 // mindful minutes
 extension HKFacade {
-    public func readMindfulMinutesSamples(predicate: HKPredicate?, limit: Int?) async -> Result<[HKFStatsSample], HKFError> {
+    public func readMindfulMinutesSamples(predicate: HKFPredicate?, limit: Int?) async -> Result<[HKFStatsSample], HKFError> {
         let mindfulMinutesType = HKFMetricType.mindfulMinutes
 
         let mindfulMinutesRes = await readSamples(type: mindfulMinutesType, predicate: predicate, limit: nil)
@@ -164,7 +164,7 @@ extension HKFacade {
 
 // bloodPressure
 extension HKFacade {
-    public func readBloodPressureSamples(predicate: HKPredicate?, limit: Int?) async -> Result<[HKFStatsSample], HKFError> {
+    public func readBloodPressureSamples(predicate: HKFPredicate?, limit: Int?) async -> Result<[HKFStatsSample], HKFError> {
         let bpSystolicType = HKFMetricType.bloodPressureSystolic
         let bpDiastolicType = HKFMetricType.bloodPressureDiastolic
 
@@ -224,7 +224,7 @@ extension HKFacade {
 
         let rriBuilder = HKHeartbeatSeriesBuilder(
                 healthStore: hkStore,
-                device: HKModelBuilder.buildDevice(device),
+                device: HKFModelBuilder.buildDevice(device),
                 start: session.period.start
         )
 
@@ -241,7 +241,7 @@ extension HKFacade {
         }
     }
 
-    public func readRriSeries(predicate: HKPredicate?, limit: Int?) async -> Result<[HKFRriSession], HKFError> {
+    public func readRriSeries(predicate: HKFPredicate?, limit: Int?) async -> Result<[HKFRriSession], HKFError> {
         let sessionsRes = await readHeartbeatSessions(predicate: predicate, limit: limit)
 
         switch sessionsRes {
@@ -268,7 +268,7 @@ extension HKFacade {
         }
     }
 
-    private func readHeartbeatSessions(predicate: HKPredicate?, limit: Int?) async -> Result<[HKHeartbeatSeriesSample], HKFError> {
+    private func readHeartbeatSessions(predicate: HKFPredicate?, limit: Int?) async -> Result<[HKHeartbeatSeriesSample], HKFError> {
         await withCheckedContinuation { continuation in
             let type: HKFMetricType = .rri
 
@@ -280,7 +280,7 @@ extension HKFacade {
 
             let heartbeatSeriesSampleQuery = HKSampleQuery(
                     sampleType: hbSeriesSampleType,
-                    predicate: HKModelBuilder.build(
+                    predicate: HKFModelBuilder.build(
                             predicate,
                             units: type.units
                     ),
@@ -332,11 +332,11 @@ extension HKFacade {
 
                 let query = HKStatisticsCollectionQuery(
                         quantityType: associatedType,
-                        quantitySamplePredicate: HKModelBuilder.build(
+                        quantitySamplePredicate: HKFModelBuilder.build(
                                 request.predicate,
                                 units: request.associatedType.units
                         ),
-                        options: request.aggregationType.asStatsOption,
+                        options: request.aggregation.asStatsOption,
                         anchorDate: request.anchor,
                         intervalComponents: request.cadence.dateComponent
                 )
@@ -348,6 +348,7 @@ extension HKFacade {
                         return
                     }
                     print("read \(request.associatedType): found: \(collection.statistics().count)")
+
                     continuation.yield(.success(collection))
                 }
 
@@ -362,32 +363,41 @@ extension HKFacade {
         }
     }
 
-    public func readStats(request: HKReadStatsRequest) -> AnyPublisher<HKStatisticsCollection, HKFError> {
-        let subject = PassthroughSubject<HKStatisticsCollection, HKFError>()
+    public func readStats(request: HKReadStatsRequest) -> AnyPublisher<HKFStatsCollection, HKFError> {
+        let subject = PassthroughSubject<HKFStatsCollection, HKFError>()
 
         guard let associatedType = request.associatedType.asQuantityType else {
-            return Fail(error: .failedToGetQuantityType).eraseToAnyPublisher()
+            return Fail(error: .failedToReadStats(msg: "Stats requests are only available for quantity types"))
+                    .eraseToAnyPublisher()
         }
 
         let query = HKStatisticsCollectionQuery(
                 quantityType: associatedType,
-                quantitySamplePredicate: HKModelBuilder.build(
+                quantitySamplePredicate: HKFModelBuilder.build(
                         request.predicate,
                         units: request.associatedType.units
                 ),
-                options: request.aggregationType.asStatsOption,
+                options: request.aggregation.asStatsOption,
                 anchorDate: request.anchor,
                 intervalComponents: request.cadence.dateComponent
         )
 
         let notify: (HKStatisticsCollection?)->() = { collection in
             guard let collection = collection else {
-                subject.send(completion: .failure(HKFError.failedToRead_noStats))
+                subject.send(.init(
+                        stats: [],
+                        aggregation: request.aggregation
+                ))
                 return
             }
-            collection.asUnitSamples
+
             print("read \(request.associatedType): found: \(collection.statistics().count)")
-            subject.send(collection)
+
+            subject.send(.init(
+                    stats: collection.statistics()
+                            .compactMap { HKFModelBuilder.build($0, metricType: request.associatedType, aggregation: request.aggregation) },
+                    aggregation: request.aggregation
+            ))
         }
 
         query.initialResultsHandler = { query, collection, err in
@@ -452,7 +462,7 @@ extension HKFacade {
 // stats samples
 extension HKFacade {
 
-    private func readSamples(type: HKFMetricType, predicate: HKPredicate?, limit: Int?) async -> Result<[HKFStatsSample], HKFError> {
+    private func readSamples(type: HKFMetricType, predicate: HKFPredicate?, limit: Int?) async -> Result<[HKFStatsSample], HKFError> {
         await withCheckedContinuation { continuation in
             guard let hkStore = hkStore else {
                 return continuation.resume(returning: .failure(.hkNotAvailable))
@@ -464,7 +474,7 @@ extension HKFacade {
 
             let query = HKSampleQuery(
                     sampleType: sampleType,
-                    predicate: HKModelBuilder.build(
+                    predicate: HKFModelBuilder.build(
                             predicate,
                             units: type.units
                     ),
@@ -479,7 +489,7 @@ extension HKFacade {
                 }
 
                 let result = collection
-                        .map { HKModelBuilder.build($0, type: type)}
+                        .map { HKFModelBuilder.build($0, type: type)}
 
                 print("read \(type): found: \(result.count)")
                 return continuation.resume(returning: .success(result))
@@ -498,7 +508,7 @@ extension HKFacade {
                 type: qt,
                 quantity: HKQuantity(unit: type.units, doubleValue: value),
                 start: period.start, end: period.end,
-                device: HKModelBuilder.buildDevice(device),
+                device: HKFModelBuilder.buildDevice(device),
                 metadata: nil
         )
         return await saveSample(sample)
@@ -511,10 +521,10 @@ extension HKFacade {
 
         let sample = HKCategorySample(
                 type: ct,
-                value: HKModelBuilder.buildCategoryValue(type: type, value: value),
+                value: HKFModelBuilder.buildCategoryValue(type: type, value: value),
                 start: period.start,
                 end: period.end,
-                device: HKModelBuilder.buildDevice(device),
+                device: HKFModelBuilder.buildDevice(device),
                 metadata: nil
         )
 

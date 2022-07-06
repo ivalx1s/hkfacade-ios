@@ -1,7 +1,77 @@
 import Foundation
 import HealthKit
 
-public struct HKModelBuilder {
+public struct HKFModelBuilder {
+
+    public static func build(_ stats: HKStatistics, metricType: HKFMetricType, aggregation: HKFAggregationType) -> HKFStatsSample? {
+        let period = HKFPeriod(start: stats.startDate, end: stats.endDate)
+
+        switch aggregation {
+        case .avg:
+            return .init(
+                    value: buildValue(
+                            rawValue: stats.averageQuantity()?.doubleValue(for: metricType.units),
+                            type: metricType
+                    ),
+                    type: metricType,
+                    period: period,
+                    source: nil
+            )
+        case .min:
+            return .init(
+                    value: buildValue(
+                            rawValue: stats.minimumQuantity()?.doubleValue(for: metricType.units),
+                            type: metricType
+                    ),
+                    type: metricType,
+                    period: period,
+                    source: nil
+            )
+        case .max:
+            return .init(
+                    value: buildValue(
+                            rawValue: stats.maximumQuantity()?.doubleValue(for: metricType.units),
+                            type: metricType
+                    ),
+                    type: metricType,
+                    period: period,
+                    source: nil
+            )
+        case .sum:
+            return .init(
+                    value: buildValue(
+                            rawValue: stats.sumQuantity()?.doubleValue(for: metricType.units),
+                            type: metricType
+                    ),
+                    type: metricType,
+                    period: period,
+                    source: nil
+            )
+        case .mostRecent:
+            return .init(
+                    value: buildValue(
+                            rawValue: stats.mostRecentQuantity()?.doubleValue(for: metricType.units),
+                            type: metricType
+                    ),
+                    type: metricType,
+                    period: period,
+                    source: nil
+            )
+        }
+    }
+
+    public static func buildValue(rawValue: Double?, type: HKFMetricType) -> HKFValue {
+        switch type {
+        case .heartRate,
+             .breathRate,
+             .oxygenSaturation:
+            return .nullableDouble(rawValue)
+        case .sdnn:
+            return .nullableDouble(rawValue)
+        default:
+            return .nullableDouble(rawValue)
+        }
+    }
 
     public static func buildCategoryValue(type: HKFMetricType, value: Double) -> Int {
         switch type {
@@ -12,12 +82,12 @@ public struct HKModelBuilder {
         }
     }
 
-    public static func build(_ predicate: HKPredicate?, units: HKUnit) -> NSPredicate? {
+    public static func build(_ predicate: HKFPredicate?, units: HKUnit) -> NSPredicate? {
         guard let predicate = predicate else { return nil }
         return build(predicate: predicate, units: units)
     }
 
-    public static func build(predicate: HKPredicate, units: HKUnit) -> NSPredicate {
+    public static func build(predicate: HKFPredicate, units: HKUnit) -> NSPredicate {
         switch predicate {
         case let .not(subPredicate):
             return NSCompoundPredicate(notPredicateWithSubpredicate: build(predicate: subPredicate, units: units))

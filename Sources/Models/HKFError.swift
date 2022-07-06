@@ -5,6 +5,7 @@ public enum HKFError: Error {
     case noAccessForDomain
     case typeIsNotInDomain
     case failedToGetQuantityType
+    case failedToReadStats(msg: String)
     case general(Error)
     case failedToSaveQuantitySample
     case failedToSaveCategorySample

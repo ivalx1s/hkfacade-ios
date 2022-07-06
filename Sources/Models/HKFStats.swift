@@ -6,6 +6,7 @@ public enum HKFAggregationType {
     case min
     case max
     case sum
+    case mostRecent
 
     var asStatsOption: HKStatisticsOptions {
         switch self {
@@ -13,16 +14,12 @@ public enum HKFAggregationType {
         case .min: return .discreteMin
         case .max: return .discreteMax
         case .sum: return .cumulativeSum
+        case .mostRecent: return .mostRecent
         }
     }
 }
 
-struct HKFStatsCollection {
-    let stats: [HKFStats]
-    let aggregation: HKFAggregationType
-}
-
-struct HKFStats {
-    let value: HKFValue
-    let period: HKFPeriod
+public struct HKFStatsCollection {
+    public let stats: [HKFStatsSample]
+    public let aggregation: HKFAggregationType
 }

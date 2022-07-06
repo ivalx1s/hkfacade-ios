@@ -4,19 +4,19 @@ public extension HKReadSamplesRequest {
     enum RType {
         case discreteSample(
                 associatedType: HKFMetricType,
-                predicate: HKPredicate?,
+                predicate: HKFPredicate?,
                 limit: Int?
         )
         case bloodPressureSample(
-                predicate: HKPredicate?,
+                predicate: HKFPredicate?,
                 limit: Int?
         )
         case mindfulMinutesSample(
-                predicate: HKPredicate?,
+                predicate: HKFPredicate?,
                 limit: Int?
         )
         case heartbeatSeries(
-                predicate: HKPredicate?,
+                predicate: HKFPredicate?,
                 limit: Int?
         )
     }
