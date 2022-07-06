@@ -22,4 +22,6 @@ public enum HKFAggregationType {
 public struct HKFStatsCollection {
     public let stats: [HKFStatsSample]
     public let aggregation: HKFAggregationType
+    public let metricType: HKFMetricType
 }
+

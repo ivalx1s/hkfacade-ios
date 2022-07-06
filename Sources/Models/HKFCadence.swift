@@ -1,12 +1,12 @@
 import Foundation
 
 public enum HKFCadence: Identifiable, Hashable, Comparable {
-    case minutes(Int)
-    case hours(Int)
-    case days(Int)
-    case weeks(Int)
-    case months(Int)
-    case years(Int)
+    case minutes(Int = 1)
+    case hours(Int = 1)
+    case days(Int = 1)
+    case weeks(Int = 1)
+    case months(Int = 1)
+    case years(Int = 1)
 
     public var id: String {
         switch self {
@@ -37,6 +37,17 @@ public enum HKFCadence: Identifiable, Hashable, Comparable {
         case let .weeks(val): return DateComponents(weekOfMonth: val)
         case let .months(val): return DateComponents(month: val)
         case let .years(val): return DateComponents(year: val)
+        }
+    }
+
+    public var calendarComponents: Set<Calendar.Component> {
+        switch self {
+        case .years: return [.year]
+        case .months: return [.year, .month]
+        case .weeks: return [.year, .month, .weekOfMonth]
+        case .days: return [.year, .month, .day]
+        case .hours: return [.year, .month, .day, .hour]
+        case .minutes: return [.year, .month, .day, .hour, .minute]
         }
     }
 

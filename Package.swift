@@ -15,15 +15,27 @@ let package = Package(
             type: .dynamic,
             targets: ["HKFacade"]),
     ],
-    dependencies: [
-
-    ],
+    dependencies: Package.remoteDependencies,
     targets: [
         .target(
             name: "HKFacade",
-            dependencies: [],
+            dependencies: Package.facadeDependencies,
             path: "Sources"
         )
     ]
 )
 
+// MARK: -- Dependencies
+extension Package {
+    static var remoteDependencies: [Package.Dependency] {
+        [
+            .package(url: "https://github.com/apple/swift-algorithms.git", from: "1.0.0"),
+        ]
+    }
+
+    static var facadeDependencies: [Target.Dependency] {
+        [
+            .product(name: "Algorithms", package: "swift-algorithms"),
+        ]
+    }
+}

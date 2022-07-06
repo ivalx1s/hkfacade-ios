@@ -10,4 +10,8 @@ public struct HKFMindfulMinutes: Equatable, Hashable {
         self.start = start
         self.end = end
     }
+
+    var interval: TimeInterval {
+        end.timeIntervalSince(start)
+    }
 }

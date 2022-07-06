@@ -1,12 +1,14 @@
 import Foundation
 import HealthKit
 import Combine
+import Algorithms
 
 public protocol AnyHKFacade {
     var isAvailable: Bool { get }
     func checkAccess(_ domains: HKFDomain...) async -> Result<Void, HKFError>
     func readSamples(request: HKReadSamplesRequest) async -> Result<[HKFStatsSample], HKFError>
-    func readStats(request: HKReadStatsRequest) -> AnyPublisher<HKFStatsCollection, HKFError>
+    func quantityStatsSubscription(request: HKReadStatsRequest) -> AnyPublisher<HKFStatsCollection, HKFError>
+    func readStats(request: HKReadStatsRequest) async -> Result<HKFStatsCollection, HKFError>
     func write(request: HKWriteRequest) async -> Result<Void, HKFError>
 
     func remoteDataStream(request: HKReadStatsRequest) -> AsyncStream<Result<HKStatisticsCollection, HKFError>>
@@ -363,7 +365,115 @@ extension HKFacade {
         }
     }
 
-    public func readStats(request: HKReadStatsRequest) -> AnyPublisher<HKFStatsCollection, HKFError> {
+    public func readStats(request: HKReadStatsRequest) async -> Result<HKFStatsCollection, HKFError> {
+        guard let samplesRequest = buildReadSamplesRequest(by: request) else {
+            return .failure(.failedToReadStats(msg: "build request failed: \(request.associatedType) is not supported"))
+        }
+
+        let res = await readSamples(request: samplesRequest)
+        guard case let .success(collection) = res else {
+            return .failure(.failedToReadStats(msg: "error occurred"))
+        }
+        
+        let stats = collection.groupBy(request.cadence.calendarComponents)
+                .lazy
+                .sorted{($0.value.first?.date ?? Date()) > ($1.value.first?.date ?? Date())}
+                .compactMap {
+                    reduce($0.value, type: request.associatedType, by: request.aggregation, period: buildPeriod($0.key, cadence: request.cadence))
+                }
+
+        return .success(HKFStatsCollection(stats: stats, aggregation: request.aggregation, metricType: request.associatedType))
+    }
+
+    private func buildPeriod(_ dateComponents: DateComponents, cadence: HKFCadence) -> HKFPeriod? {
+        guard let start = Calendar.current.date(from: dateComponents) else { return nil }
+        let end: Date!
+        switch cadence {
+        case .years: end = start.add(years: 1)
+        case .months: end = start.add(months: 1)
+        case .weeks: end = start.add(weeks: 1)
+        case .days: end = start.add(days: 1)
+        case .hours: end = start.add(hours: 1)
+        case .minutes: end = start.add(months: 1)
+        }
+
+        return .init(start: start, end: end)
+    }
+
+    private func reduce(_ collection: [HKFStatsSample], type: HKFMetricType, by aggregation: HKFAggregationType, period: HKFPeriod?) -> HKFStatsSample? {
+        let collection = collection.lazy.sorted {$0.date < $1.date}
+        guard let first = collection.first,
+              let last = collection.last
+        else { return nil }
+
+        let period: HKFPeriod = period ?? .init(
+                start: first.period.start,
+                end: last.period.start
+        )
+
+        switch aggregation {
+        case .mostRecent:
+            return collection.last
+        case .min:
+            return collection.min { $0.value < $1.value }
+        case .max:
+            return collection.max { $0.value < $1.value }
+        case .avg:
+            switch type {
+            case .heartRate, .breathRate,.oxygenSaturation,.sdnn, .bloodPressureSystolic, .bloodPressureDiastolic,
+                 .steps, .distance,
+                 .basalEnergy, .activeEnergy:
+                let avg = collection.lazy.compactMap { $0.value.asDouble }.average
+                return .init(value: .nullableDouble(avg), type: type, period: period, source: nil)
+            case .mindfulMinutes:
+                let avg = collection.lazy.compactMap { $0.value.asMindfulMinutes?.interval }.average
+                return .init(value: .nullableDouble(avg), type: type, period: period, source: nil)
+            case .bloodPressure:
+                let values = collection.lazy.compactMap { $0.value.asBloodPressure }
+                let systolicAvg = values.lazy.map { $0.systolic }.average
+                let diastolicAvg = values.lazy.map { $0.diastolic }.average
+                return .init(value: .bloodPressure(.init(systolic: systolicAvg ?? 0, diastolic: diastolicAvg ?? 0)), type: .bloodPressure, period: period, source: nil)
+            case .rri:
+                let avg = collection
+                        .compactMap { $0.value.asRriSession }
+                        .compactMap { $0.timestamps.average  }
+                        .average
+                return .init(value: .nullableDouble(avg), type: .rri, period: period, source: nil)
+            }
+        case .sum:
+            switch type {
+            case .heartRate, .breathRate,.oxygenSaturation,.sdnn, .bloodPressureSystolic, .bloodPressureDiastolic,
+                 .steps, .distance,
+                 .basalEnergy, .activeEnergy:
+                let sum = collection.lazy.compactMap { $0.value.asDouble }.sum
+                return .init(value: .nullableDouble(sum), type: type, period: period, source: nil)
+            case .mindfulMinutes:
+                let sum = collection.lazy.compactMap { $0.value.asMindfulMinutes?.interval }.sum
+                return .init(value: .nullableDouble(sum), type: type, period: period, source: nil)
+            case .bloodPressure:
+                return nil
+            case .rri:
+                return nil
+            }
+        }
+    }
+
+    private func buildReadSamplesRequest(by readStatsRequest: HKReadStatsRequest) -> HKReadSamplesRequest? {
+        switch readStatsRequest.associatedType {
+        case .heartRate, .breathRate, .oxygenSaturation, .sdnn:
+            return .init(type: .discreteSample(associatedType: readStatsRequest.associatedType, predicate: readStatsRequest.predicate, limit: nil))
+        case .mindfulMinutes:
+            return .init(type: .mindfulMinutesSample(predicate: readStatsRequest.predicate, limit: nil))
+        case .bloodPressure:
+            return .init(type: .bloodPressureSample(predicate: readStatsRequest.predicate, limit: nil))
+        case .rri:
+            return .init(type: .heartbeatSeries(predicate: readStatsRequest.predicate, limit: nil))
+        default:
+            return nil
+        }
+    }
+
+    public func quantityStatsSubscription(request: HKReadStatsRequest) -> AnyPublisher<HKFStatsCollection, HKFError> {
         let subject = PassthroughSubject<HKFStatsCollection, HKFError>()
 
         guard let associatedType = request.associatedType.asQuantityType else {
@@ -386,7 +496,8 @@ extension HKFacade {
             guard let collection = collection else {
                 subject.send(.init(
                         stats: [],
-                        aggregation: request.aggregation
+                        aggregation: request.aggregation,
+                        metricType: request.associatedType
                 ))
                 return
             }
@@ -396,7 +507,8 @@ extension HKFacade {
             subject.send(.init(
                     stats: collection.statistics()
                             .compactMap { HKFModelBuilder.build($0, metricType: request.associatedType, aggregation: request.aggregation) },
-                    aggregation: request.aggregation
+                    aggregation: request.aggregation,
+                    metricType: request.associatedType
             ))
         }
 

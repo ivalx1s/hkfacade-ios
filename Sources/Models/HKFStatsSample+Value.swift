@@ -7,6 +7,21 @@ public enum HKFValue: Equatable, Hashable {
     case mindfulMinutes(HKFMindfulMinutes)
 }
 
+extension HKFValue: Comparable {
+    public static func <(lhs: HKFValue, rhs: HKFValue) -> Bool {
+        switch lhs {
+        case let .nullableDouble(leftVal):
+            return (leftVal ?? 0) < (rhs.asDouble ?? 0)
+        case let .mindfulMinutes(leftVal):
+            return leftVal.end.timeIntervalSince(leftVal.start) < (rhs.asMindfulMinutes?.end ?? Date()).timeIntervalSince(rhs.asMindfulMinutes?.start ?? Date())
+        case let .bloodPressure(leftVal):
+            return leftVal.systolic < rhs.asBloodPressure?.systolic ?? 0
+        case let .rriSession(leftVal):
+            return (leftVal.timestamps.max() ?? 0) < (rhs.asRriSession?.timestamps.max() ?? 0)
+        }
+    }
+}
+
 public extension HKFValue {
     var asDouble: Double? {
         switch self {
