@@ -5,7 +5,9 @@ import Algorithms
 
 public protocol AnyHKFacade {
     var isAvailable: Bool { get }
-    func checkAccess(_ domains: HKFDomain...) async -> Result<Void, HKFError>
+    func requestAccess(_ domains: HKFDomain...) async -> Result<Void, HKFError>
+    func requestAccess(_ domains: [HKFDomain]) async -> Result<Void, HKFError>
+
     func readSamples(request: HKReadSamplesRequest) async -> Result<[HKFStatsSample], HKFError>
     func quantityStatsSubscription(request: HKReadStatsRequest) -> AnyPublisher<HKFStatsCollection, HKFError>
     func readStats(request: HKReadStatsRequest) async -> Result<HKFStatsCollection, HKFError>
@@ -29,9 +31,17 @@ public class HKFacade: AnyHKFacade {
 extension HKFacade {
     public var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
 
-    public func checkAccess(_ domains: HKFDomain...) async -> Result<Void, HKFError> {
+    public func requestAccess(_ domains: [HKFDomain]) async -> Result<Void, HKFError> {
         let types = domains.flatMap {$0.associatedTypes}
+        return await checkAccess(for: types)
+    }
 
+    public func requestAccess(_ domains: HKFDomain...) async -> Result<Void, HKFError> {
+        let types = domains.flatMap {$0.associatedTypes}
+        return await checkAccess(for: types)
+    }
+
+    private func checkAccess(for types: [HKFMetricType]) async -> Result<Void, HKFError>{
         switch await requestAccess(toShare: types, toRead: types) {
         case let .failure(err):
             return .failure(err)

@@ -5,7 +5,7 @@ public enum HKFDomain {
     case cardio
     case meditation
 
-    var associatedTypes: [HKFMetricType] {
+    public var associatedTypes: [HKFMetricType] {
         switch self {
         case .fitness: return [
             .steps,
@@ -30,7 +30,7 @@ public enum HKFDomain {
         }
     }
 
-    func contains(_ type: HKFMetricType) -> Bool {
+    public func contains(_ type: HKFMetricType) -> Bool {
         self.associatedTypes.contains(type)
     }
 }
