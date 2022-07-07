@@ -1,9 +1,9 @@
 import Foundation
 import HealthKit
 
-public struct HKFModelBuilder {
+struct HKFModelBuilder {
 
-    public static func build(_ stats: HKStatistics, metricType: HKFMetricType, aggregation: HKFAggregationType) -> HKFStatsSample? {
+    static func build(_ stats: HKStatistics, metricType: HKFMetricType, aggregation: HKFAggregationType) -> HKFStatsAggregationSample? {
         let period = HKFPeriod(start: stats.startDate, end: stats.endDate)
 
         switch aggregation {
@@ -15,7 +15,8 @@ public struct HKFModelBuilder {
                     ),
                     type: metricType,
                     period: period,
-                    source: nil
+                    sources: [],
+                    aggregatedItemsCount: 0
             )
         case .min:
             return .init(
@@ -25,7 +26,8 @@ public struct HKFModelBuilder {
                     ),
                     type: metricType,
                     period: period,
-                    source: nil
+                    sources: [],
+                    aggregatedItemsCount: 0
             )
         case .max:
             return .init(
@@ -35,7 +37,8 @@ public struct HKFModelBuilder {
                     ),
                     type: metricType,
                     period: period,
-                    source: nil
+                    sources: [],
+                    aggregatedItemsCount: 0
             )
         case .sum:
             return .init(
@@ -45,7 +48,8 @@ public struct HKFModelBuilder {
                     ),
                     type: metricType,
                     period: period,
-                    source: nil
+                    sources: [],
+                    aggregatedItemsCount: 0
             )
         case .mostRecent:
             return .init(
@@ -55,12 +59,13 @@ public struct HKFModelBuilder {
                     ),
                     type: metricType,
                     period: period,
-                    source: nil
+                    sources: [],
+                    aggregatedItemsCount: 0
             )
         }
     }
 
-    public static func buildValue(rawValue: Double?, type: HKFMetricType) -> HKFValue {
+    static func buildValue(rawValue: Double?, type: HKFMetricType) -> HKFValue {
         switch type {
         case .heartRate,
              .breathRate,
@@ -73,7 +78,7 @@ public struct HKFModelBuilder {
         }
     }
 
-    public static func buildCategoryValue(type: HKFMetricType, value: Double) -> Int {
+    static func buildCategoryValue(type: HKFMetricType, value: Double) -> Int {
         switch type {
         case .mindfulMinutes:
             return 0
@@ -82,12 +87,12 @@ public struct HKFModelBuilder {
         }
     }
 
-    public static func build(_ predicate: HKFPredicate?, units: HKUnit) -> NSPredicate? {
+    static func build(_ predicate: HKFPredicate?, units: HKUnit) -> NSPredicate? {
         guard let predicate = predicate else { return nil }
         return build(predicate: predicate, units: units)
     }
 
-    public static func build(predicate: HKFPredicate, units: HKUnit) -> NSPredicate {
+    static func build(predicate: HKFPredicate, units: HKUnit) -> NSPredicate {
         switch predicate {
         case let .not(subPredicate):
             return NSCompoundPredicate(notPredicateWithSubpredicate: build(predicate: subPredicate, units: units))
@@ -118,16 +123,16 @@ public struct HKFModelBuilder {
         }
     }
 
-    public static func build(_ model: HKSample, type: HKFMetricType) -> HKFStatsSample {
+    static func build(_ model: HKSample, type: HKFMetricType) -> HKFStatsSample {
         HKFStatsSample(
                 value: .nullableDouble(buildValue(model, type: type)),
                 type: type,
                 period: .init(start: model.startDate, end: model.endDate),
-                source: build(model.device)
+                source: buildDevice(model.device)
         )
     }
 
-    public static func buildValue(_ model: HKSample, type: HKFMetricType) -> Double? {
+    static func buildValue(_ model: HKSample, type: HKFMetricType) -> Double? {
         if let model = model as? HKQuantitySample {
             return model.quantity.doubleValue(for: type.units)
         }
@@ -145,15 +150,109 @@ public struct HKFModelBuilder {
         return nil
     }
 
-    public static func build(_ model: HealthKit.HKDevice?) -> HKFDevice? {
+    static func buildDevice(_ model: HealthKit.HKDevice?) -> HKFDevice? {
         guard let device = model else { return nil }
+        return buildDevice(device)
+    }
+
+    static func buildDevice(_ model: HealthKit.HKDevice) -> HKFDevice {
         return .init(
-                name: device.name ?? "",
-                model: device.model ?? "",
-                hardwareVersion: device.hardwareVersion ?? "",
-                softwareVersion: device.softwareVersion ?? "",
-                manufacturer: device.manufacturer ?? ""
+                name: model.name ?? "",
+                model: model.model ?? "",
+                hardwareVersion: model.hardwareVersion ?? "",
+                softwareVersion: model.softwareVersion ?? "",
+                manufacturer: model.manufacturer ?? ""
         )
+    }
+
+    static func reduce(_ collection: [HKFStatsSample], type: HKFMetricType, by aggregation: HKFAggregationType, period: HKFPeriod?) -> HKFStatsAggregationSample? {
+        let collection = collection.lazy.sorted {$0.date < $1.date}
+        let sources = collection.compactMap { $0.source }
+        guard let first = collection.first,
+              let last = collection.last
+        else { return nil }
+
+        let period: HKFPeriod = period ?? .init(
+                start: first.period.start,
+                end: last.period.start
+        )
+
+        switch aggregation {
+        case .mostRecent:
+            guard let last = collection.last else { return nil }
+            return
+                    .init(value: last.value, type: last.type, period: last.period, sources: sources, aggregatedItemsCount: collection.count)
+        case .min:
+            guard let min = (collection.min { $0.value < $1.value }) else { return nil }
+            return .init(value: min.value, type: min.type, period: min.period, sources: sources, aggregatedItemsCount: collection.count)
+        case .max:
+            guard let max = (collection.max { $0.value < $1.value }) else { return nil }
+            return .init(value: max.value, type: max.type, period: max.period, sources: sources, aggregatedItemsCount: collection.count)
+        case .avg:
+            switch type {
+            case .heartRate, .breathRate,.oxygenSaturation,.sdnn, .bloodPressureSystolic, .bloodPressureDiastolic,
+                 .steps, .distance,
+                 .basalEnergy, .activeEnergy:
+                let avg = collection.lazy.compactMap { $0.value.asDouble }.average
+                return .init(value: .nullableDouble(avg), type: type, period: period, sources: sources, aggregatedItemsCount: collection.count)
+            case .mindfulMinutes:
+                let avg = collection.lazy.compactMap { $0.value.asMindfulMinutes?.interval }.average
+                return .init(value: .nullableDouble(avg), type: type, period: period, sources: sources, aggregatedItemsCount: collection.count)
+            case .bloodPressure:
+                let values = collection.lazy.compactMap { $0.value.asBloodPressure }
+                let systolicAvg = values.lazy.map { $0.systolic }.average
+                let diastolicAvg = values.lazy.map { $0.diastolic }.average
+                return .init(value: .bloodPressure(.init(systolic: systolicAvg ?? 0, diastolic: diastolicAvg ?? 0)), type: .bloodPressure, period: period, sources: sources, aggregatedItemsCount: collection.count)
+            case .rri:
+                let avg = collection
+                        .compactMap { $0.value.asRriSession }
+                        .compactMap { $0.timestamps.average  }
+                        .average
+                return .init(value: .nullableDouble(avg), type: .rri, period: period, sources: sources, aggregatedItemsCount: collection.count)
+            }
+        case .sum:
+            switch type {
+            case .heartRate, .breathRate,.oxygenSaturation,.sdnn, .bloodPressureSystolic, .bloodPressureDiastolic,
+                 .steps, .distance,
+                 .basalEnergy, .activeEnergy:
+                let sum = collection.lazy.compactMap { $0.value.asDouble }.sum
+                return .init(value: .nullableDouble(sum), type: type, period: period, sources: sources, aggregatedItemsCount: collection.count)
+            case .mindfulMinutes:
+                let sum = collection.lazy.compactMap { $0.value.asMindfulMinutes?.interval }.sum
+                return .init(value: .nullableDouble(sum), type: type, period: period, sources: sources, aggregatedItemsCount: collection.count)
+            case .bloodPressure:
+                return nil
+            case .rri:
+                return nil
+            }
+        }
+    }
+
+    static func buildReadSamplesRequest(by readStatsRequest: HKReadStatsRequest) -> HKReadSamplesRequest? {
+        switch readStatsRequest.associatedType {
+        case .heartRate, .breathRate, .oxygenSaturation, .sdnn:
+            return .init(
+                    type: .discreteSample(associatedType: readStatsRequest.associatedType),
+                    predicate: readStatsRequest.predicate
+            )
+        case .mindfulMinutes:
+            return .init(
+                    type: .mindfulMinutesSample,
+                    predicate: readStatsRequest.predicate
+            )
+        case .bloodPressure:
+            return .init(
+                    type: .bloodPressureSample,
+                    predicate: readStatsRequest.predicate
+            )
+        case .rri:
+            return .init(
+                    type: .heartbeatSeries,
+                    predicate: readStatsRequest.predicate
+            )
+        default:
+            return nil
+        }
     }
 
     static func buildDevice(_ device: HKFDevice) -> HealthKit.HKDevice {

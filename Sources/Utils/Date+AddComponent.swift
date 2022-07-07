@@ -1,4 +1,9 @@
 import Foundation
+extension DateComponents {
+    var asDate: Date? {
+        Calendar.current.date(from: self)
+    }
+}
 
 extension Date {
     func add(
