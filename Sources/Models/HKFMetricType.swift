@@ -1,6 +1,6 @@
 import HealthKit
 
-public enum HKFMetricType {
+public enum HKFMetricType: Codable {
     case heartRate
     case breathRate
     case oxygenSaturation

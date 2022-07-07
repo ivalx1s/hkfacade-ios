@@ -29,13 +29,11 @@ let package = Package(
 extension Package {
     static var remoteDependencies: [Package.Dependency] {
         [
-            .package(url: "https://github.com/apple/swift-algorithms.git", from: "1.0.0"),
         ]
     }
 
     static var facadeDependencies: [Target.Dependency] {
         [
-            .product(name: "Algorithms", package: "swift-algorithms"),
         ]
     }
 }

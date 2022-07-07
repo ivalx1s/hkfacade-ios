@@ -1,7 +1,6 @@
 import Foundation
 import HealthKit
 import Combine
-import Algorithms
 
 public protocol AnyHKFacade {
     var isAvailable: Bool { get }
