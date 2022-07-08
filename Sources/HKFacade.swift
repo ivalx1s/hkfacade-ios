@@ -4,8 +4,8 @@ import Combine
 
 public protocol AnyHKFacade {
     var isAvailable: Bool { get }
-    func requestAccess(_ domains: HKFDomain...) async -> Result<Void, HKFError>
-    func requestAccess(_ domains: [HKFDomain]) async -> Result<Void, HKFError>
+    func requestAccess(_ domains: HKFDomain...) async -> Result<Bool, HKFError>
+    func requestAccess(_ domains: [HKFDomain]) async -> Result<Bool, HKFError>
 
     func readSamples(request: HKReadSamplesRequest) async -> Result<[HKFStatsSample], HKFError>
     func quantityStatsSubscription(request: HKReadStatsRequest) -> AnyPublisher<HKFStatsCollection, HKFError>
@@ -30,26 +30,14 @@ public class HKFacade: AnyHKFacade {
 extension HKFacade {
     public var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
 
-    public func requestAccess(_ domains: [HKFDomain]) async -> Result<Void, HKFError> {
+    public func requestAccess(_ domains: [HKFDomain]) async -> Result<Bool, HKFError> {
         let types = domains.flatMap {$0.associatedTypes}
-        return await checkAccess(for: types)
+        return await requestAccess(toShare: types, toRead: types)
     }
 
-    public func requestAccess(_ domains: HKFDomain...) async -> Result<Void, HKFError> {
+    public func requestAccess(_ domains: HKFDomain...) async -> Result<Bool, HKFError> {
         let types = domains.flatMap {$0.associatedTypes}
-        return await checkAccess(for: types)
-    }
-
-    private func checkAccess(for types: [HKFMetricType]) async -> Result<Void, HKFError>{
-        switch await requestAccess(toShare: types, toRead: types) {
-        case let .failure(err):
-            return .failure(err)
-        case let .success(flag):
-            switch flag {
-            case false: return .failure(.noAccessForDomain)
-            case true: return .success(())
-            }
-        }
+        return await requestAccess(toShare: types, toRead: types)
     }
 
     private func requestAccess(toShare: [HKFMetricType], toRead: [HKFMetricType]) async -> Result<Bool, HKFError> {
