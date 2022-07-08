@@ -99,7 +99,13 @@ extension HKFacade {
             case let .success(sessions):
                 return .success(
                         sessions
-                                .map {HKFStatsSample(value: .rriSession($0), type: .rri, period: $0.period, source: nil)}
+                                .map {.init(
+                                        value: .rriSession($0),
+                                        type: .rri,
+                                        period: $0.period,
+                                        device: nil,
+                                        meta: .init()
+                                )}
                 )
             case let .failure(err):
                 return .failure(err)
@@ -113,15 +119,15 @@ extension HKFacade {
     public func write(request: HKWriteRequest) async -> Result<Void, HKFError> {
         switch request.type {
         case let .quantitySample(qt, val, period):
-            return await writeQuantitySample(type: qt, value: val, period: period, device: request.device)
+            return await writeQuantitySample(type: qt, value: val, period: period, device: request.device, meta: request.meta)
         case let .bloodPressureSample(value, period):
-            return await writeBloodPressureSample(value: value, period: period, device: request.device)
+            return await writeBloodPressureSample(value: value, period: period, device: request.device, meta: request.meta)
         case let .categorySample(ct, val, period):
-            return await writeCategorySample(type: ct, value: val, period: period, device: request.device)
+            return await writeCategorySample(type: ct, value: val, period: period, device: request.device, meta: request.meta)
         case let .mindfulMinutesSample(value):
-            return await writeMindfulMinutesSample(value: value, device: request.device)
+            return await writeMindfulMinutesSample(value: value, device: request.device, meta: request.meta)
         case let .heartbeat(session):
-            return await writeRri(session: session, device: request.device)
+            return await writeRri(session: session, device: request.device, meta: request.meta)
         }
     }
 }
@@ -141,7 +147,8 @@ extension HKFacade {
                                 value: .mindfulMinutes(.init(start: $0.period.start, end: $0.period.end)),
                                 type: .mindfulMinutes,
                                 period: $0.period,
-                                source: $0.source
+                                device: $0.device,
+                                meta: $0.meta
                         )
                     }
             )
@@ -151,13 +158,13 @@ extension HKFacade {
 
     }
 
-    public func writeMindfulMinutesSample(value: HKFMindfulMinutes, device: HKFDevice) async -> Result<Void, HKFError> {
+    public func writeMindfulMinutesSample(value: HKFMindfulMinutes, device: HKFDevice, meta: HKFMetadata?) async -> Result<Void, HKFError> {
         guard value.start < value.end else {
             return .failure(.failedToSave_invalidPeriod)
         }
 
         let mindfulMinutesType = HKFMetricType.mindfulMinutes
-        return await writeCategorySample(type: mindfulMinutesType, value: 0, period: .init(start: value.start, end: value.end), device: device)
+        return await writeCategorySample(type: mindfulMinutesType, value: 0, period: .init(start: value.start, end: value.end), device: device, meta: meta)
     }
 }
 
@@ -194,18 +201,19 @@ extension HKFacade {
                         )),
                         type: .bloodPressure,
                         period: s.period,
-                        source: s.source
+                        device: s.device,
+                        meta: s.meta
                     )
                 }
         )
     }
 
-    public func writeBloodPressureSample(value: HKFBloodPressure, period: HKFPeriod, device: HKFDevice) async -> Result<Void, HKFError> {
+    public func writeBloodPressureSample(value: HKFBloodPressure, period: HKFPeriod, device: HKFDevice, meta: HKFMetadata?) async -> Result<Void, HKFError> {
         let bpSystolicType = HKFMetricType.bloodPressureSystolic
         let bpDiastolicType = HKFMetricType.bloodPressureDiastolic
 
-        async let systolicRes = writeQuantitySample(type: bpSystolicType, value: value.systolic, period: period, device: device)
-        async let diastolicRes = writeQuantitySample(type: bpDiastolicType, value: value.diastolic, period: period, device: device)
+        async let systolicRes = writeQuantitySample(type: bpSystolicType, value: value.systolic, period: period, device: device, meta: meta)
+        async let diastolicRes = writeQuantitySample(type: bpDiastolicType, value: value.diastolic, period: period, device: device, meta: meta)
         guard
                 case .success = await systolicRes,
                 case .success = await diastolicRes
@@ -218,7 +226,7 @@ extension HKFacade {
 
 // rri
 extension HKFacade {
-    private func writeRri(session: HKFRriSession, device: HKFDevice) async -> Result<Void, HKFError> {
+    private func writeRri(session: HKFRriSession, device: HKFDevice, meta: HKFMetadata?) async -> Result<Void, HKFError> {
         guard let hkStore = hkStore else { return .failure(.hkNotAvailable) }
 
         let rriBuilder = HKHeartbeatSeriesBuilder(
@@ -226,6 +234,14 @@ extension HKFacade {
                 device: HKFModelBuilder.buildDevice(device),
                 start: session.period.start
         )
+
+        if let meta = meta {
+            do {
+                try await rriBuilder.addMetadata(meta)
+            } catch {
+                print("failed to add meta to rri: \(meta)")
+            }
+        }
 
         await session
                 .timestamps
@@ -538,7 +554,7 @@ extension HKFacade {
         }
     }
 
-    private func writeQuantitySample(type: HKFMetricType, value: Double, period: HKFPeriod, device: HKFDevice) async -> Result<Void, HKFError> {
+    private func writeQuantitySample(type: HKFMetricType, value: Double, period: HKFPeriod, device: HKFDevice, meta: HKFMetadata?) async -> Result<Void, HKFError> {
         guard let qt = type.asQuantityType else {
             return .failure(.failedToSaveCategorySample)
         }
@@ -548,12 +564,12 @@ extension HKFacade {
                 quantity: HKQuantity(unit: type.units, doubleValue: value),
                 start: period.start, end: period.end,
                 device: HKFModelBuilder.buildDevice(device),
-                metadata: nil
+                metadata: meta
         )
         return await saveSample(sample)
     }
 
-    private func writeCategorySample(type: HKFMetricType, value: Double, period: HKFPeriod, device: HKFDevice) async -> Result<Void, HKFError> {
+    private func writeCategorySample(type: HKFMetricType, value: Double, period: HKFPeriod, device: HKFDevice, meta: HKFMetadata?) async -> Result<Void, HKFError> {
         guard let ct = type.asHKCategoryType else {
             return .failure(.failedToSaveCategorySample)
         }
@@ -564,7 +580,7 @@ extension HKFacade {
                 start: period.start,
                 end: period.end,
                 device: HKFModelBuilder.buildDevice(device),
-                metadata: nil
+                metadata: meta
         )
 
         return await saveSample(sample)

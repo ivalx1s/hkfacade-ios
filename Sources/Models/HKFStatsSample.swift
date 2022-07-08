@@ -1,18 +1,19 @@
 import Foundation
 
-public struct HKFStatsSample: Hashable, Equatable, AnyDated {
+public struct HKFStatsSample: AnyDated {
     public let value: HKFValue
     public let type: HKFMetricType
     public let period: HKFPeriod
-    public let source: HKFDevice?
+    public let device: HKFDevice?
+    public let meta: HKFMetadata?
 
     var date: Date { period.start }
 }
 
-public struct HKFStatsAggregationSample: Hashable, Equatable {
+public struct HKFStatsAggregationSample {
     public let value: HKFValue
     public let type: HKFMetricType
     public let period: HKFPeriod
-    public let sources: [HKFDevice]
-    public let aggregatedItemsCount: Int
+    public let devices: [HKFDevice]
+    public let source: [HKFStatsSample]
 }

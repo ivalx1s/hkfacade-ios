@@ -15,8 +15,8 @@ struct HKFModelBuilder {
                     ),
                     type: metricType,
                     period: period,
-                    sources: [],
-                    aggregatedItemsCount: 0
+                    devices: [],
+                    source: []
             )
         case .min:
             return .init(
@@ -26,8 +26,8 @@ struct HKFModelBuilder {
                     ),
                     type: metricType,
                     period: period,
-                    sources: [],
-                    aggregatedItemsCount: 0
+                    devices: [],
+                    source: []
             )
         case .max:
             return .init(
@@ -37,8 +37,8 @@ struct HKFModelBuilder {
                     ),
                     type: metricType,
                     period: period,
-                    sources: [],
-                    aggregatedItemsCount: 0
+                    devices: [],
+                    source: []
             )
         case .sum:
             return .init(
@@ -48,8 +48,8 @@ struct HKFModelBuilder {
                     ),
                     type: metricType,
                     period: period,
-                    sources: [],
-                    aggregatedItemsCount: 0
+                    devices: [],
+                    source: []
             )
         case .mostRecent:
             return .init(
@@ -59,8 +59,8 @@ struct HKFModelBuilder {
                     ),
                     type: metricType,
                     period: period,
-                    sources: [],
-                    aggregatedItemsCount: 0
+                    devices: [],
+                    source: []
             )
         }
     }
@@ -128,7 +128,8 @@ struct HKFModelBuilder {
                 value: .nullableDouble(buildValue(model, type: type)),
                 type: type,
                 period: .init(start: model.startDate, end: model.endDate),
-                source: buildDevice(model.device)
+                device: buildDevice(model.device),
+                meta: model.metadata
         )
     }
 
@@ -167,7 +168,7 @@ struct HKFModelBuilder {
 
     static func reduce(_ collection: [HKFStatsSample], type: HKFMetricType, by aggregation: HKFAggregationType, period: HKFPeriod?) -> HKFStatsAggregationSample? {
         let collection = collection.lazy.sorted {$0.date < $1.date}
-        let sources = collection.compactMap { $0.source }
+        let sources = collection.compactMap { $0.device }
         guard let first = collection.first,
               let last = collection.last
         else { return nil }
@@ -181,34 +182,34 @@ struct HKFModelBuilder {
         case .mostRecent:
             guard let last = collection.last else { return nil }
             return
-                    .init(value: last.value, type: last.type, period: last.period, sources: sources, aggregatedItemsCount: collection.count)
+                    .init(value: last.value, type: last.type, period: last.period, devices: sources, source: collection)
         case .min:
             guard let min = (collection.min { $0.value < $1.value }) else { return nil }
-            return .init(value: min.value, type: min.type, period: min.period, sources: sources, aggregatedItemsCount: collection.count)
+            return .init(value: min.value, type: min.type, period: min.period, devices: sources, source: collection)
         case .max:
             guard let max = (collection.max { $0.value < $1.value }) else { return nil }
-            return .init(value: max.value, type: max.type, period: max.period, sources: sources, aggregatedItemsCount: collection.count)
+            return .init(value: max.value, type: max.type, period: max.period, devices: sources, source: collection)
         case .avg:
             switch type {
             case .heartRate, .breathRate,.oxygenSaturation,.sdnn, .bloodPressureSystolic, .bloodPressureDiastolic,
                  .steps, .distance,
                  .basalEnergy, .activeEnergy:
                 let avg = collection.lazy.compactMap { $0.value.asDouble }.average
-                return .init(value: .nullableDouble(avg), type: type, period: period, sources: sources, aggregatedItemsCount: collection.count)
+                return .init(value: .nullableDouble(avg), type: type, period: period, devices: sources, source: collection)
             case .mindfulMinutes:
                 let avg = collection.lazy.compactMap { $0.value.asMindfulMinutes?.interval }.average
-                return .init(value: .nullableDouble(avg), type: type, period: period, sources: sources, aggregatedItemsCount: collection.count)
+                return .init(value: .nullableDouble(avg), type: type, period: period, devices: sources, source: collection)
             case .bloodPressure:
                 let values = collection.lazy.compactMap { $0.value.asBloodPressure }
                 let systolicAvg = values.lazy.map { $0.systolic }.average
                 let diastolicAvg = values.lazy.map { $0.diastolic }.average
-                return .init(value: .bloodPressure(.init(systolic: systolicAvg ?? 0, diastolic: diastolicAvg ?? 0)), type: .bloodPressure, period: period, sources: sources, aggregatedItemsCount: collection.count)
+                return .init(value: .bloodPressure(.init(systolic: systolicAvg ?? 0, diastolic: diastolicAvg ?? 0)), type: .bloodPressure, period: period, devices: sources, source: collection)
             case .rri:
                 let avg = collection
                         .compactMap { $0.value.asRriSession }
                         .compactMap { $0.timestamps.average  }
                         .average
-                return .init(value: .nullableDouble(avg), type: .rri, period: period, sources: sources, aggregatedItemsCount: collection.count)
+                return .init(value: .nullableDouble(avg), type: .rri, period: period, devices: sources, source: collection)
             }
         case .sum:
             switch type {
@@ -216,10 +217,10 @@ struct HKFModelBuilder {
                  .steps, .distance,
                  .basalEnergy, .activeEnergy:
                 let sum = collection.lazy.compactMap { $0.value.asDouble }.sum
-                return .init(value: .nullableDouble(sum), type: type, period: period, sources: sources, aggregatedItemsCount: collection.count)
+                return .init(value: .nullableDouble(sum), type: type, period: period, devices: sources, source: collection)
             case .mindfulMinutes:
                 let sum = collection.lazy.compactMap { $0.value.asMindfulMinutes?.interval }.sum
-                return .init(value: .nullableDouble(sum), type: type, period: period, sources: sources, aggregatedItemsCount: collection.count)
+                return .init(value: .nullableDouble(sum), type: type, period: period, devices: sources, source: collection)
             case .bloodPressure:
                 return nil
             case .rri:
