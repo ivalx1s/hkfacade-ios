@@ -5,6 +5,7 @@ public struct HKFStatsSample: AnyDated {
     public let type: HKFMetricType
     public let period: HKFPeriod
     public let device: HKFDevice?
+    public let source: HKFSource?
     public let meta: HKFMetadata?
 
     var date: Date { period.start }

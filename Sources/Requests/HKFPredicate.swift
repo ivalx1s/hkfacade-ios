@@ -11,5 +11,5 @@ public indirect enum HKFPredicate {
     case composite(HKFLogicalOperation, [HKFPredicate])
     case date(HKFOpenDateRange)
     case quantity(operator: NSComparisonPredicate.Operator, value: Double)
-    case source(name: String)
+    case device(name: String)
 }

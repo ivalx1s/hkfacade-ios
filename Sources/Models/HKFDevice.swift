@@ -1,5 +1,19 @@
 import Foundation
 
+public struct HKFSource: Equatable, Hashable {
+    public let name: String
+    public let bundleId: String
+
+
+    public init(
+            name: String,
+            bundleId: String
+    ) {
+        self.name = name
+        self.bundleId = bundleId
+    }
+}
+
 public struct HKFDevice: Equatable, Hashable {
     public let name: String
     public let model: String

@@ -115,7 +115,7 @@ struct HKFModelBuilder {
                     withStart: period.start,
                     end: period.end
             )
-        case let .source(name):
+        case let .device(name):
             return HKQuery.predicateForObjects(
                     withDeviceProperty: HKDevicePropertyKeyName,
                     allowedValues: [name]
@@ -129,6 +129,7 @@ struct HKFModelBuilder {
                 type: type,
                 period: .init(start: model.startDate, end: model.endDate),
                 device: buildDevice(model.device),
+                source: buildSource(model.source),
                 meta: model.metadata
         )
     }
@@ -156,8 +157,15 @@ struct HKFModelBuilder {
         return buildDevice(device)
     }
 
+    static func buildSource(_ model: HealthKit.HKSource) -> HKFSource {
+        .init(
+                name: model.name,
+                bundleId: model.bundleIdentifier
+        )
+    }
+
     static func buildDevice(_ model: HealthKit.HKDevice) -> HKFDevice {
-        return .init(
+        .init(
                 name: model.name ?? "",
                 model: model.model ?? "",
                 hardwareVersion: model.hardwareVersion ?? "",

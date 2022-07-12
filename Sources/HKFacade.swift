@@ -104,6 +104,7 @@ extension HKFacade {
                                         type: .rri,
                                         period: $0.period,
                                         device: nil,
+                                        source: nil,
                                         meta: .init()
                                 )}
                 )
@@ -148,6 +149,7 @@ extension HKFacade {
                                 type: .mindfulMinutes,
                                 period: $0.period,
                                 device: $0.device,
+                                source: $0.source,
                                 meta: $0.meta
                         )
                     }
@@ -202,6 +204,7 @@ extension HKFacade {
                         type: .bloodPressure,
                         period: s.period,
                         device: s.device,
+                        source: s.source,
                         meta: s.meta
                     )
                 }
