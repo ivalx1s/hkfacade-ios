@@ -1,6 +1,6 @@
 import Foundation
 
-public enum HKFDomain {
+public enum HKFDomain: String {
     case fitness
     case cardio
     case meditation
@@ -32,5 +32,11 @@ public enum HKFDomain {
 
     public func contains(_ type: HKFMetricType) -> Bool {
         self.associatedTypes.contains(type)
+    }
+}
+
+extension HKFDomain: CustomStringConvertible {
+    public var description: String {
+        self.rawValue
     }
 }

@@ -1,6 +1,6 @@
 import HealthKit
 
-public enum HKFMetricType: Codable {
+public enum HKFMetricType: String, Codable {
     case heartRate
     case breathRate
     case oxygenSaturation
@@ -104,5 +104,11 @@ public enum HKFMetricType: Codable {
         case .mindfulMinutes:
             return HealthKit.HKQuantityType.categoryType(forIdentifier: .mindfulSession)
         }
+    }
+}
+
+extension HKFMetricType: CustomStringConvertible {
+    public var description: String {
+        return self.rawValue
     }
 }
