@@ -1,33 +1,24 @@
 import Foundation
 
-public enum HKFDomain: String {
-    case fitness
-    case cardio
-    case meditation
+public extension HKFDomain {
+    static var fitness: HKFDomain = .init(
+            associatedTypes: [.steps, .distance, .basalEnergy, .activeEnergy]
+    )
 
-    public var associatedTypes: [HKFMetricType] {
-        switch self {
-        case .fitness: return [
-            .steps,
-            .distance,
-            .basalEnergy,
-            .activeEnergy
-        ]
+    static var cardio: HKFDomain = .init(
+            associatedTypes: [.heartRate, .breathRate, .oxygenSaturation, .sdnn, .rri, .bloodPressureSystolic, .bloodPressureDiastolic]
+    )
 
-        case .cardio: return [
-            .heartRate,
-            .breathRate,
-            .oxygenSaturation,
-            .bloodPressureSystolic,
-            .bloodPressureDiastolic,
-            .sdnn,
-            .rri
-        ]
+    static var meditation: HKFDomain = .init(
+            associatedTypes: [.mindfulMinutes]
+    )
+}
 
-        case .meditation: return [
-            .mindfulMinutes
-        ]
-        }
+public struct HKFDomain {
+    public let associatedTypes: [HKFMetricType]
+
+    public init(associatedTypes: [HKFMetricType]) {
+        self.associatedTypes = associatedTypes
     }
 
     public func contains(_ type: HKFMetricType) -> Bool {
@@ -37,6 +28,7 @@ public enum HKFDomain: String {
 
 extension HKFDomain: CustomStringConvertible {
     public var description: String {
-        self.rawValue
+        self.associatedTypes.map {$0.rawValue}.joined(separator: ",")
     }
 }
+
