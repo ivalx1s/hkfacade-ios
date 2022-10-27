@@ -1,0 +1,26 @@
+#!/bin/bash
+
+while getopts ":t:r:" opt; do
+  case $opt in
+    t) tag="$OPTARG"
+    ;;
+    r) repo="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG" >&2
+    exit 1
+    ;;
+  esac
+
+  case $OPTARG in
+    -*) echo "Option $opt needs a valid argument"
+    exit 1
+    ;;
+  esac
+done
+
+git tag $tag
+git push alive $tag
+git push darwell $tag
+
+gh release create $tag --generate-notes --repo Darwell-Inc/$repo
+gh release create $tag --generate-notes --repo ivalx1s/$repo
