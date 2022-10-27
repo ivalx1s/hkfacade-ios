@@ -1,10 +1,10 @@
 #!/bin/bash
 
-while getopts ":t:r:" opt; do
+while getopts ":t:v:" opt; do
   case $opt in
     t) tag="$OPTARG"
     ;;
-    r) repo="$OPTARG"
+    v) semanticVersionLabel="$OPTARG"
     ;;
     \?) echo "Invalid option -$OPTARG" >&2
     exit 1
@@ -18,9 +18,47 @@ while getopts ":t:r:" opt; do
   esac
 done
 
-git tag $tag
-git push alive $tag
-git push darwell $tag
 
-gh release create $tag --generate-notes --repo Darwell-Inc/$repo
-gh release create $tag --generate-notes --repo ivalx1s/$repo
+repoFromFolderName=$(pwd | sed 's#.*/##')
+
+git fetch
+currentVersion=$(git tag --sort=committerdate | tail -1)
+
+function incr_semver() { 
+    IFS='.' read -ra ver <<< "$1"
+    [[ "${#ver[@]}" -ne 3 ]] && echo "Invalid semver string" && return 1
+    [[ "$#" -eq 1 ]] && level='release' || level=$2
+
+    release=${ver[2]}
+    minor=${ver[1]}
+    major=${ver[0]}
+
+    case $level in
+        release)
+            release=$((release+1))
+        ;;
+        minor)
+            release=0
+            minor=$((minor+1))
+        ;;
+        major)
+            release=0
+            minor=0
+            major=$((major+1))
+        ;;
+        *)
+            echo "Invalid level passed"
+            return 2
+    esac
+    echo "$major.$minor.$release"
+}
+
+new_version_tag=$(incr_semver $currentVersion $semanticVersionLabel)
+
+git tag $new_version_tag
+git push alive $new_version_tag
+git push darwell $new_version_tag
+
+gh release create $new_version_tag --generate-notes --repo Darwell-Inc/${repoFromFolderName}
+
+gh release create $new_version_tag --generate-notes --repo ivalx1s/${repoFromFolderName}
