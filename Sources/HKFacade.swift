@@ -118,6 +118,7 @@ extension HKFacade {
 // write
 extension HKFacade {
     public func write(request: HKWriteRequest) async -> Result<Void, HKFError> {
+
         switch request.type {
         case let .quantitySample(qt, val, period):
             return await writeQuantitySample(type: qt, value: val, period: period, device: request.device, meta: request.meta)
@@ -249,7 +250,7 @@ extension HKFacade {
         await session
                 .timestamps
                 .concurrentForEach { timestamp in
-                    try? await rriBuilder.addHeartbeat(at: timestamp, precededByGap: true)
+                    try? await rriBuilder.addHeartbeat(at: timestamp, precededByGap: false)
                 }
         do {
             try await rriBuilder.finishSeries()
