@@ -15,7 +15,7 @@ public extension HKFDomain {
 }
 
 public struct HKFDomain {
-    public let associatedTypes: [HKFMetricType]
+    public private(set) var associatedTypes: [HKFMetricType]
 
     public init(associatedTypes: [HKFMetricType]) {
         self.associatedTypes = associatedTypes
@@ -24,6 +24,10 @@ public struct HKFDomain {
     public func contains(_ type: HKFMetricType) -> Bool {
         self.associatedTypes.contains(type)
     }
+	
+	public mutating func append(_ type: HKFMetricType) {
+		associatedTypes.append(type)
+	}
 }
 
 extension HKFDomain: CustomStringConvertible {
