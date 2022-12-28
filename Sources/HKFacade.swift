@@ -15,7 +15,7 @@ public protocol AnyHKFacade {
     func remoteDataStream(request: HKReadStatsRequest) -> AsyncStream<Result<HKStatisticsCollection, HKFError>>
 }
 
-public class HKFacade: AnyHKFacade {
+public final class HKFacade: AnyHKFacade {
     private let hkStore: HKHealthStore?
     
     public init() {

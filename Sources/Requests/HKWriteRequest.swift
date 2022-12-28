@@ -1,6 +1,10 @@
 import Foundation
 
-public typealias HKFMetadata = [String : Any]
+public extension HKFacade {
+	typealias ExerciseMetaKey = String
+}
+
+public typealias HKFMetadata = [HKFacade.ExerciseMetaKey : Any]
 
 public struct HKWriteRequest {
     public let type: RType
