@@ -14,7 +14,7 @@ public extension HKFDomain {
     )
 }
 
-public struct HKFDomain {
+public struct HKFDomain: Sendable {
     public private(set) var associatedTypes: [HKFMetricType]
 
     public init(associatedTypes: [HKFMetricType]) {
